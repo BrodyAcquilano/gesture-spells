@@ -41,32 +41,80 @@ so the app on another port would show an empty library.
 
 1. **Spellbook → Spellbook tab.** Press the green **+** to make a spell and
    type a name, for example "Spark".
-2. Press **Record gesture**. The viewer turns into the camera. Press
-   **Start camera**, then **Record example**.
-3. During the 3-second countdown, hold your hand still and open, palm to the
-   camera, about an arm's length away, whole hand in view.
-4. At **GO**, bring your thumb tip and index fingertip firmly together,
-   quickly, and **keep holding the pinch** until the gold bar finishes.
-5. Record 3 to 5 examples this way, varying them a little: a bit faster,
-   slower, nearer, further. Press **Done**.
-6. In the details below, choose **Sparks ✨** as the animation and
-   **Spark chime** as the audio. The viewer now replays your recorded pinch
-   with the sparks where it ends, and the chime has its own player.
-7. **Record tab.** Press **Start camera** and pinch. Sparks burst from your
-   fingers and the chime plays.
+2. Record 3 to 5 examples of a pinch, following
+   [Recording a gesture](#recording-a-gesture) below.
+3. In the details below the viewer, choose **Sparks ✨** as the animation
+   and **Spark chime** as the audio. The viewer now replays your recorded
+   pinch with the sparks where it ends, and the chime has its own player.
+4. **Record tab.** Press **Start camera** and pinch. The spell's name
+   flashes, sparks burst from your fingers and the chime plays.
 
-If it never casts, raise the spell's **Sensitivity** or record more examples.
-If it casts when you didn't mean it to, lower the sensitivity. The
-**closest** reading at the top of the Record view shows how near your
-movement is to a spell: it casts when the first number drops below the
-second.
+## Recording a gesture
+
+A gesture is recorded as hand positions only: 21 points per hand per frame.
+No video or picture of you is kept (see "Where things are saved").
+
+### Steps
+
+1. In **Spellbook → Spellbook**, select the spell and press **Record gesture**
+   (or **Add examples** if it already has some). The viewer turns into the
+   camera.
+2. Press **Start camera** and allow the camera if Edge asks. A cyan skeleton
+   should appear over your hand. If it doesn't, move your hand fully into
+   view.
+3. Press **Record example**. A 3-second countdown starts.
+4. During the countdown, **hold still** in the gesture's starting position.
+5. At **GO**, do the gesture **once**. The skeleton turns gold and a gold bar
+   fills along the bottom (2.5 seconds).
+6. When the bar finishes, the recording is cut down to the part where your
+   hand moved and saved as one example. A message shows how long the movement
+   was, or what went wrong.
+7. Press **Record another** until you have 3 to 5 examples, then **Done**.
+
+### For a pinch
+
+- Sit about an arm's length from the camera, in good light, with your whole
+  hand in view and your palm facing the camera.
+- Start with your hand **open**, fingers relaxed and slightly apart.
+- At GO, bring your **thumb tip and index fingertip firmly together**,
+  quickly, so they clearly touch.
+- **Keep holding the pinch** until the gold bar finishes. Don't open your
+  hand again. The spell casts the moment the pinch closes, so the recording
+  should end closed.
+- Use the hand you will cast with. Either hand works, because left hands are
+  mirrored to match right hands.
+
+### Tips for any gesture
+
+- **Start and end still.** The recorder finds the gesture by looking for
+  where your hand leaves its starting pose and settles into its final one.
+- **Vary the examples a little**: one a bit faster, one slower, one nearer
+  the camera, one further. The spell's limit for casting comes from how much
+  your examples differ, so a little variety makes it forgiving enough for
+  real use. Wildly different examples make it accept almost anything.
+- **Keep the whole hand in view.** If the hand is lost for much of the
+  recording, it is rejected.
+- **"No movement was seen"** means the hand barely moved. Make the gesture
+  bigger or clearer.
+- A bad example can't be deleted on its own yet. Use **Clear** and record
+  the set again.
+
+### Tuning
+
+After recording, try the spell in the **Record** tab. The **closest** reading
+at the top shows how near your movement is to a spell, as two numbers. It
+casts when the first drops below the second.
+
+- **Never casts:** raise the spell's **Sensitivity** in the Spellbook
+  details, or record more examples.
+- **Casts by accident:** lower the sensitivity.
 
 ## Layout
 
 A header runs across the top: the title on the left, the four modes on the
 right. Each mode has its tabs along the bottom.
 
-Most tabs share one layout: a **list** on the left quarter, and on the right
+Most tabs share one layout: a **list** on the left sixth of the screen, and on the right
 a **viewer** (top two thirds) above a **details** box (bottom third). The
 Edit tab adds a video and audio **timeline** between the viewer and details.
 
@@ -168,6 +216,11 @@ browser's IndexedDB database for this site. They are still there next time
 the app is opened, in the same browser at the same address. The app asks the
 browser to keep the data even when disk space runs low. An export/import
 backup file is planned.
+
+None of this is in the project folder, so recorded gestures and uploads never
+end up in git. `.gitignore` also excludes video files saved into the project
+(`recordings/`, `exports/`, and `.webm`, `.mp4`, `.mov` and `.mkv` files),
+except built-in animations in `public/library/`.
 
 ## How gestures are recognised
 

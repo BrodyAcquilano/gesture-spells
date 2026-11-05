@@ -5,3 +5,15 @@ dist
 
 public/mediapipe
 public/models
+
+# Recorded videos and exported videos stay on this computer.
+# (Recorded gestures and uploads live in the browser's IndexedDB, not in this
+# folder, so they never reach git. These rules cover any file saved here.)
+/recordings/
+/exports/
+*.webm
+*.mp4
+*.mov
+*.mkv
+# ...except built-in library animations, which ship with the app
+!public/library/**
