@@ -6,6 +6,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 gesture-spells: turn motion-captured hand gestures, such as drawing a rune in the air or a spell-casting motion, into animations and video effects.
 
+It has at least three parts: record a gesture, assign an animation and a sound to it, and record video with the gesture animations added in. It is meant to support two workflows:
+
+- **Spellbook (live):** record and name gestures, give each an animation and sound, then record video while the app recognises the gestures and plays their effects as they happen.
+- **Editing (after the fact):** record video first, then mark the stretches that contain gestures and choose an animation and sound for each, then export.
+
+Both share hand tracking, gesture storage, the effect library and drawing effects over video. Only the spellbook needs live gesture recognition.
+
 It is a learning project, like the owner's earlier ones: [mnist](https://github.com/BrodyAcquilano/mnist) (a fully connected network) and [convolution-mnist](https://github.com/BrodyAcquilano/convolution-mnist) (a convolutional network), both written from scratch in JavaScript with React and Vite. Clarity matters more than speed or the last bit of accuracy.
 
 ## Status
