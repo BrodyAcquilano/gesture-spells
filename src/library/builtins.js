@@ -23,7 +23,7 @@ export const PROCEDURAL = {
       name: 'Illumination',
       procedural: 'illumination',
       description:
-        'A point of warm white light that flares at the index fingertip with a flash ring and crossing light streaks, glows, and fades over about 2 s. Drawn by code (src/effects/illumination.js).',
+        'A large point of warm white light that flares at the index fingertip with a flash ring and crossing light streaks, shines for about 2 s and fades out by about 3 s, following the finger as it moves. Drawn by code (src/effects/illumination.js).',
     },
     {
       id: 'builtin:fireball',

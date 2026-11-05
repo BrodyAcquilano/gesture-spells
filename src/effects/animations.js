@@ -1,6 +1,8 @@
 // The animations drawn by code. Each `create` returns one playing instance:
 //   { update(dt), draw(ctx), done }
 // `anchor` says where on the hand it appears (see anchorPoint in landmarks.js).
+// `follow: true` means it keeps moving with that point while it plays (the
+// instance then has setPosition(x, y)).
 import { createCoins } from './coins.js'
 import { createIllumination } from './illumination.js'
 import { createFireball } from './fireball.js'
@@ -22,6 +24,7 @@ export const PROCEDURAL_ANIMATIONS = {
   },
   illumination: {
     anchor: 'indexTip',
+    follow: true,
     create: (x, y, height) => createIllumination(x, y, height),
   },
   fireball: {

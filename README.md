@@ -46,7 +46,7 @@ The app comes with three spells ready to use. Built-in spells are named
 | Spell | Gesture | Animation | Sound |
 | --- | --- | --- | --- |
 | **Pinch-Coins** | Press thumb and index fingertip together | Coins 🪙: spinning gold coins burst from the pinch | Spark-Chime |
-| **Snap-Brightness** | Snap: middle finger off the thumb into the palm | Illumination: a point of light flares at the index fingertip | Spark-Chime |
+| **Snap-Brightness** | Snap: middle finger off the thumb into the palm | Illumination: a point of light flares at the index fingertip and shines for about 3 s | Spark-Chime |
 | **Push-Fireball** | Fist, then fling the hand open and push it at the camera | Fireball: forms at the palm and rushes towards you | Fire-Crackle |
 
 1. **Spellbook → Spellbook tab.** Select a spell and press **Play**. It loops
@@ -188,7 +188,7 @@ Each built-in animation is drawn by code on a canvas, every frame
 | Animation | Appears at | How it is drawn |
 | --- | --- | --- |
 | Coins 🪙 | between thumb and index tip | Ten coins thrown out with air drag and gravity, spinning (drawn squashed sideways as they turn), fading out within about half a second. The glowing coin is drawn once into a small image and stamped, which is far faster than drawing emoji text with a glow every frame |
-| Illumination | the index fingertip | A flash ring, a warm halo, a white-hot core, two crossing light streaks and drifting specks, added together with additive blending so overlapping light goes towards white |
+| Illumination | the index fingertip, following it as it moves | A flash ring, a large warm halo, a white-hot core, two crossing light streaks and drifting specks, added together with additive blending so overlapping light goes towards white. Full brightness for about 2 s, then it fades out by about 3 s |
 | Fireball | the palm | A ball (white-hot to yellow, orange and deep red) that grows and drifts towards the centre as it "comes at" the camera, throwing off flame particles that cool from yellow to red to smoke, then bursts into embers |
 
 Uploaded video and image files appear centred on the pinch point.

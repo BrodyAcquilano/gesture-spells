@@ -6,6 +6,8 @@
 //       to canvas pixels; the animation then appears at its anchor on the
 //       hand (pinch point, index fingertip or palm). Without them it appears
 //       at x, y.
+//   follow(points, map)  each frame while a hand is visible: animations that
+//       follow the hand (the candle) move with their anchor point
 //   update(dt) and draw(ctx) every frame
 //   pause() / resume()  freeze and continue everything, sound and video included
 //   busy()  true while anything is still playing. Nothing is cut short, so a
@@ -45,7 +47,9 @@ export function createEffectPlayer() {
     if (!animation) return
     const procedural = PROCEDURAL_ANIMATIONS[animation.procedural]
     if (procedural) {
-      instances.push(procedural.create(x, y, ctx.canvas.height, ctx.canvas.width))
+      const instance = procedural.create(x, y, ctx.canvas.height, ctx.canvas.width)
+      if (procedural.follow) instance.anchor = procedural.anchor
+      instances.push(instance)
       return
     }
     if (!animation.url) return
@@ -72,6 +76,11 @@ export function createEffectPlayer() {
       pending.push({ animation, x, y })
       if (sound) playSound(audio)
       if (label) labels.push({ text: label, x, y, age: 0 })
+    },
+    follow(points, map) {
+      for (const instance of instances) {
+        if (instance.anchor) instance.setPosition(...map(anchorPoint(points, instance.anchor)))
+      }
     },
     update(dt) {
       if (paused) return

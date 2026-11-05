@@ -1,5 +1,6 @@
 // "Illumination": a point of light that flares at the fingertip after a snap,
-// glows for a moment, then fades (about 2 s in all).
+// glows, then fades (about 3 s in all). It follows the fingertip while it
+// shines (setPosition).
 //
 // Layers, all drawn with additive blending ('lighter') so overlapping light
 // adds up towards white, like real light:
@@ -10,9 +11,9 @@
 //   motes       a few specks of light drifting outwards and twinkling
 
 const FLARE_IN = 0.06 // seconds to full brightness
-const HOLD = 0.5 // seconds before it starts to fade
-const FADE = 0.45 // fade time constant
-const END = 2.1
+const HOLD = 2.2 // seconds before it starts to fade
+const FADE = 0.35 // fade time constant
+const END = 3.3
 
 function brightness(t) {
   if (t < FLARE_IN) return t / FLARE_IN
@@ -23,21 +24,32 @@ function brightness(t) {
 // size: the canvas height, so the light scales with the view.
 export function createIllumination(x, y, size) {
   let t = 0
-  const motes = Array.from({ length: 16 }, () => {
+  const motes = Array.from({ length: 24 }, () => {
     const angle = Math.random() * Math.PI * 2
-    const speed = size * (0.02 + Math.random() * 0.08)
+    const speed = size * (0.03 + Math.random() * 0.1)
     return {
       x,
       y,
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed - size * 0.01,
-      life: 0.8 + Math.random() * 1.0,
+      life: 1.5 + Math.random() * 1.5,
       phase: Math.random() * Math.PI * 2,
-      r: size * (0.003 + Math.random() * 0.004),
+      r: size * (0.0045 + Math.random() * 0.006),
     }
   })
 
   return {
+    // Ease towards the fingertip so tracker jitter doesn't shake the light.
+    setPosition(nx, ny) {
+      const dx = (nx - x) * 0.5
+      const dy = (ny - y) * 0.5
+      x += dx
+      y += dy
+      for (const m of motes) {
+        m.x += dx
+        m.y += dy
+      }
+    },
     get done() {
       return t > END
     },
@@ -61,13 +73,13 @@ export function createIllumination(x, y, size) {
       if (t < 0.35) {
         const k = t / 0.35
         ctx.strokeStyle = `rgba(255, 245, 210, ${0.6 * (1 - k)})`
-        ctx.lineWidth = Math.max(1, size * 0.006 * (1 - k))
+        ctx.lineWidth = Math.max(1, size * 0.009 * (1 - k))
         ctx.beginPath()
-        ctx.arc(x, y, size * 0.22 * Math.sqrt(k), 0, Math.PI * 2)
+        ctx.arc(x, y, size * 0.33 * Math.sqrt(k), 0, Math.PI * 2)
         ctx.stroke()
       }
 
-      const haloRadius = size * 0.17 * (0.7 + 0.3 * b)
+      const haloRadius = size * 0.26 * (0.7 + 0.3 * b)
       const halo = ctx.createRadialGradient(x, y, 0, x, y, haloRadius)
       halo.addColorStop(0, `rgba(255, 244, 214, ${0.55 * b})`)
       halo.addColorStop(0.35, `rgba(255, 214, 140, ${0.22 * b})`)
@@ -81,8 +93,8 @@ export function createIllumination(x, y, size) {
       ctx.translate(x, y)
       ctx.rotate(t * 0.4)
       for (const [length, thickness] of [
-        [size * 0.32, size * 0.004],
-        [size * 0.16, size * 0.003],
+        [size * 0.48, size * 0.006],
+        [size * 0.24, size * 0.0045],
       ]) {
         const streak = ctx.createLinearGradient(-length, 0, length, 0)
         streak.addColorStop(0, 'rgba(255, 240, 210, 0)')
@@ -94,7 +106,7 @@ export function createIllumination(x, y, size) {
       }
       ctx.setTransform(1, 0, 0, 1, 0, 0)
 
-      const coreRadius = size * 0.028 * (0.6 + 0.4 * b)
+      const coreRadius = size * 0.042 * (0.6 + 0.4 * b)
       const core = ctx.createRadialGradient(x, y, 0, x, y, coreRadius)
       core.addColorStop(0, `rgba(255, 255, 255, ${b})`)
       core.addColorStop(0.5, `rgba(255, 250, 225, ${0.8 * b})`)

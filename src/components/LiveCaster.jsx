@@ -58,6 +58,7 @@ export default function LiveCaster() {
     }
 
     for (const each of hands) drawHand(ctx, each.points, map)
+    if (hand) s.player.follow(hand.points, map)
     s.player.update(dt)
     s.player.draw(ctx)
 
