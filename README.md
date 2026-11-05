@@ -153,20 +153,33 @@ gesture, an animation and an audio file from the library.
   trimmed to the part where your hand moved.
 
 **Record.** Live casting and recording.
-- Viewer: the camera. When a spell's gesture is recognised, the spell's name
-  flashes, its animation appears at your hand and its audio plays.
-  **● Record** / **■ Stop recording** records a video, with a timer.
+- Left column, split in half:
+  - **Recordings** (top). **● New recording** (or the green +) connects to
+    the camera. Selecting a saved recording plays it back instead, with its
+    spells' animations and sounds.
+  - **Spells to recognise** (bottom), for a new recording: tick boxes with a
+    green tick to the left of each spell's name, plus All and None. Untick a
+    spell so it can't fire by mistake, for example Pinch-Coins while you
+    snap, since a pinch and a snap look alike. The choice is saved with the
+    recording and can't be changed afterwards, so this half is empty when a
+    saved recording is selected. Spells without a recorded gesture can't be
+    ticked.
+- Viewer, for a new recording: the camera. When a ticked spell's gesture is
+  recognised, its name flashes, its animation appears at your hand and its
+  sound plays. A bar along the bottom has **● Start recording** /
+  **■ Stop recording** with a timer, and **Stop camera**.
+- Details: the name and description for the next recording (or editable
+  for a saved one), and for a saved one **Open in Finalize** and, at the
+  bottom, **Delete recording**.
 - While recording, the animations still show but their sounds are muted, so
   the microphone doesn't record them (Finalize adds them cleanly).
 - Each recording is saved into `recordings/<id>/`:
   - `video.mp4`: the camera and microphone, exactly as filmed, without
     effects. It is MP4 where the browser can record it, otherwise WebM.
   - `track.json`: the hand positions in every frame
-  - `meta.json`: its name, length, and each spell cast (when, which
-    spell, and where the hand was)
+  - `meta.json`: its name, description, length, the spells that were
+    ticked, and each spell cast (when, which spell, and where the hand was)
 - `recordings/` is git-ignored: recordings stay on this computer.
-- List: your recordings. Select one for its details, **Open in Finalize** or
-  **Delete**.
 
 **Finalize.** Turn a recording into a finished video.
 - List: your recordings.
@@ -175,12 +188,13 @@ gesture, an animation and an audio file from the library.
   that follow the hand (Brightness) follow the recorded hand. **Play /
   Pause**, a position slider and the time.
 - Details:
-  - the recording's name (editable), date, length and format
+  - the recording's name and description (editable), date, length and format
   - the spells cast, each with its time, animation and sound, and **×** to
     remove one that fired by mistake
   - **Detect spells again**: looks for spells in the recorded hand movements
-    with the spellbook as it is now. Use it after adding or changing a
-    spell, or for a recording made in Editing mode.
+    with the spellbook as it is now, using only the spells that were ticked
+    for that recording. Use it after changing a spell, or for a recording
+    made in Editing mode.
 - **Export video** plays the recording through once in real time, recording
   the picture with the animations, your microphone and the spell sounds into
   one file: MP4 where the browser can (Edge can), otherwise WebM. It is

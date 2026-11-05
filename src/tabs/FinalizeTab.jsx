@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useData } from '../library/DataContext.js'
 import { formatDate } from '../library/formats.js'
-import { loadTrack } from '../storage/projectApi.js'
+import { useTrack } from '../record/useTrack.js'
 import { detectCasts } from '../gestures/detect.js'
 import Workspace from '../components/Workspace.jsx'
 import ListPanel from '../components/ListPanel.jsx'
@@ -17,22 +17,8 @@ export default function FinalizeTab() {
   const confirm = useConfirm()
   const [params, setParams] = useSearchParams()
   const selected = recordings.find((r) => r.id === params.get('id')) ?? recordings[recordings.length - 1]
-  const [tracks, setTracks] = useState({}) // id -> track
   const [exported, setExported] = useState(null)
-  const track = selected ? tracks[selected.id] : null
-
-  useEffect(() => {
-    if (!selected || tracks[selected.id]) return
-    let cancelled = false
-    loadTrack(selected.id)
-      .catch(() => [])
-      .then((loaded) => {
-        if (!cancelled) setTracks((all) => ({ ...all, [selected.id]: loaded }))
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [selected, tracks])
+  const track = useTrack(selected?.id)
 
   // A cast's spell, animation and sound, looked up by the spell's id.
   const resolveCast = useCallback(
@@ -64,7 +50,9 @@ export default function FinalizeTab() {
   async function detectAgain() {
     if (!track?.length) return
     if (selected.casts.length && !(await confirm('Detect spells again? The current list of casts is replaced.', { confirmLabel: 'Detect again' }))) return
-    const casts = detectCasts(track, spells, (selected.width || 16) / (selected.height || 9))
+    // Only the spells that were ticked for this recording, if it says.
+    const allowed = selected.spellIds?.length ? spells.filter((s) => selected.spellIds.includes(s.id)) : spells
+    const casts = detectCasts(track, allowed, (selected.width || 16) / (selected.height || 9))
     updateRecording(selected.id, { casts })
   }
 
@@ -136,6 +124,14 @@ export default function FinalizeTab() {
                   </button>
                 </dd>
               </dl>
+              <label className="field">
+                <span>Description</span>
+                <textarea
+                  value={selected.description ?? ''}
+                  onChange={(event) => updateRecording(selected.id, { description: event.target.value })}
+                  placeholder="What happens in this recording…"
+                />
+              </label>
               <div className="field">
                 <span>Spells cast ({selected.casts.length})</span>
                 {selected.casts.length === 0 ? (

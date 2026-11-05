@@ -12,28 +12,44 @@ const COOLDOWN_MS = 1000
 
 // Live camera with recording.
 //
-// recognize = true (Spellbook mode): recognises the spellbook's gestures and
-// plays each spell's animation (at the hand) and audio when it is cast.
-// recognize = false (Editing mode): just the camera and hand tracking.
+//   recognize  true (Spellbook mode): recognises spells and shows their
+//              effects as they are cast. false (Editing mode): camera only.
+//   spellIds   which spells to recognise (null: all of them)
+//   details    { name, description } for the next recording
+//   onPhase    called with 'idle' | 'recording' | 'saving' as that changes
+//   onSaved    called with the new recording's details once it is saved
 //
-// Record saves, into recordings/ (local only):
+// A recording saves, into recordings/ (local only):
 //   the camera video with the microphone, as it came from the camera, with
 //     no effects drawn on it (Finalize adds them)
 //   the hand positions in every frame (track)
 //   each spell cast: when, which spell, and where the hand was
 // While recording, effects still show but their sounds are muted, so the
 // microphone doesn't pick them up and Finalize doesn't add them twice.
-export default function LiveCaster({ recognize = true }) {
+export default function LiveCaster({ recognize = true, spellIds = null, details, onPhase, onSaved }) {
   const { spells, findFile, saveRecording } = useData()
-  const recognizer = useMemo(() => buildRecognizer(recognize ? spells : []), [spells, recognize])
+  const active = useMemo(
+    () => (recognize ? spells.filter((spell) => !spellIds || spellIds.includes(spell.id)) : []),
+    [spells, spellIds, recognize],
+  )
+  const recognizer = useMemo(() => buildRecognizer(active), [active])
   // Decode every spell's sound now, so casting plays it without delay.
   useEffect(() => {
-    for (const spell of spells) preloadSound(findFile('audio', spell.audioId)?.url)
-  }, [spells, findFile])
+    for (const spell of active) preloadSound(findFile('audio', spell.audioId)?.url)
+  }, [active, findFile])
+  const latest = useRef({ details, onPhase, onSaved, spellIds })
+  useEffect(() => {
+    latest.current = { details, onPhase, onSaved, spellIds }
+  })
   const live = useRef(null) // per-run state the loop changes every frame
   const recording = useRef(null) // { handle, track, casts, size } while recording
   const [stats, setStats] = useState({ fps: 0, hands: 0, casts: 0, best: null, last: '' })
-  const [recordState, setRecordState] = useState({ phase: 'idle', seconds: 0, message: '' }) // idle | recording | saving
+  const [recordState, setRecordState] = useState({ phase: 'idle', seconds: 0, message: '', ok: true })
+
+  function setPhase(phase, extra = {}) {
+    setRecordState((r) => ({ ...r, ...extra, phase }))
+    latest.current.onPhase?.(phase)
+  }
 
   const { videoRef, canvasRef, status, error, hasMicrophone, start, stop, getStream } = useHandCamera(
     ({ ctx, w, h, hands, now, dt, fresh }) => {
@@ -95,21 +111,28 @@ export default function LiveCaster({ recognize = true }) {
   function beginRecording() {
     const stream = getStream()
     if (!stream) return
-    recording.current = { handle: startRecording(stream), track: [], casts: [], size: null }
-    setRecordState({ phase: 'recording', seconds: 0, message: '' })
+    try {
+      recording.current = { handle: startRecording(stream), track: [], casts: [], size: null }
+      setPhase('recording', { seconds: 0, message: '' })
+    } catch (err) {
+      recording.current = null
+      setPhase('idle', { message: err.message, ok: false })
+    }
   }
 
   async function endRecording() {
     const rec = recording.current
     if (!rec) return
     recording.current = null
-    setRecordState({ phase: 'saving', seconds: 0, message: '' })
+    setPhase('saving')
     try {
       const { blob, mimeType, ext, duration } = await rec.handle.stop()
       const createdAt = Date.now()
+      const { details: next = {}, spellIds: chosen } = latest.current
       const meta = {
         id: timestampId('rec'),
-        name: `Recording ${new Date(createdAt).toLocaleString()}`,
+        name: next.name?.trim() || `Recording ${new Date(createdAt).toLocaleString()}`,
+        description: next.description ?? '',
         createdAt,
         duration,
         mimeType,
@@ -117,41 +140,42 @@ export default function LiveCaster({ recognize = true }) {
         width: rec.size?.width ?? 0,
         height: rec.size?.height ?? 0,
         recognized: recognize,
+        spellIds: recognize ? (chosen ?? spells.map((s) => s.id)) : [],
         casts: rec.casts,
       }
       await saveRecording({ blob, ext, meta, track: rec.track })
-      setRecordState({ phase: 'idle', seconds: 0, message: `Saved "${meta.name}" (${duration.toFixed(1)} s, ${ext.toUpperCase()}).` })
+      setPhase('idle', { message: `Saved "${meta.name}" (${duration.toFixed(1)} s, ${ext.toUpperCase()}, ${meta.casts.length} spell${meta.casts.length === 1 ? '' : 's'} cast).`, ok: true })
+      latest.current.onSaved?.(meta)
     } catch (err) {
-      setRecordState({ phase: 'idle', seconds: 0, message: `Could not save the recording: ${err.message}` })
+      setPhase('idle', { message: `Could not save the recording: ${err.message}`, ok: false })
     }
   }
 
-  function handleStop() {
+  function handleStopCamera() {
     if (recording.current) endRecording()
     live.current?.player.clear()
     live.current = null
     stop()
   }
 
-  const castable = recognizer.entries
   const running = status === 'running'
+  const recordingNow = recordState.phase === 'recording'
   const clock = (seconds) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`
-  const savedOk = recordState.message.startsWith('Saved')
   return (
     <div className="caster">
       <video ref={videoRef} className="caster-video" playsInline muted />
       <canvas ref={canvasRef} className="caster-canvas" />
       {!running && (
         <div className="caster-overlay">
-          <p className="caster-title">{recognize ? 'Live casting' : 'Camera'}</p>
+          <p className="caster-title">New recording</p>
           {recognize &&
-            (castable.length === 0 ? (
-              <p className="muted">No spell has a recorded gesture yet. Go to the Spellbook tab and record one first.</p>
+            (recognizer.entries.length === 0 ? (
+              <p className="muted">No spells are ticked (or none has a recorded gesture), so none will be recognised.</p>
             ) : (
-              <p className="muted">Ready to recognise: {castable.map((entry) => entry.spell.name).join(', ')}</p>
+              <p className="muted">Will recognise: {recognizer.entries.map((entry) => entry.spell.name).join(', ')}</p>
             ))}
           {error && <p className="error">{error}</p>}
-          {recordState.message && <p className={savedOk ? 'ok' : 'error'}>{recordState.message}</p>}
+          {recordState.message && <p className={recordState.ok ? 'ok' : 'error'}>{recordState.message}</p>}
           <button className="neon-button" onClick={start} disabled={status === 'loading'}>
             {status === 'loading' ? 'Loading camera and hand model…' : 'Start camera'}
           </button>
@@ -159,18 +183,6 @@ export default function LiveCaster({ recognize = true }) {
       )}
       {running && (
         <div className="caster-hud">
-          {recordState.phase === 'recording' ? (
-            <>
-              <span className="rec-dot">● REC {clock(recordState.seconds)}</span>
-              <button className="neon-button small danger" onClick={endRecording}>
-                ■ Stop recording
-              </button>
-            </>
-          ) : (
-            <button className="neon-button small" onClick={beginRecording} disabled={recordState.phase === 'saving'}>
-              {recordState.phase === 'saving' ? 'Saving…' : '● Record'}
-            </button>
-          )}
           <span>{stats.fps} fps</span>
           {!hasMicrophone && <span className="muted">no microphone</span>}
           {recognize && (
@@ -186,14 +198,28 @@ export default function LiveCaster({ recognize = true }) {
               </span>
             </>
           )}
-          <button className="neon-button small" onClick={handleStop}>
-            Stop camera
-          </button>
         </div>
       )}
-      {running && recordState.message && recordState.phase === 'idle' && (
-        <div className="caster-toast">
-          <span className={savedOk ? 'ok' : 'error'}>{recordState.message}</span>
+      {running && (
+        <div className="record-bar">
+          {recordingNow ? (
+            <>
+              <span className="rec-dot">● REC {clock(recordState.seconds)}</span>
+              <button className="neon-button danger record-button" onClick={endRecording}>
+                ■ Stop recording
+              </button>
+            </>
+          ) : (
+            <button className="neon-button record-button" onClick={beginRecording} disabled={recordState.phase === 'saving'}>
+              {recordState.phase === 'saving' ? 'Saving…' : '● Start recording'}
+            </button>
+          )}
+          {recordState.message && recordState.phase === 'idle' && (
+            <span className={recordState.ok ? 'ok small' : 'error small'}>{recordState.message}</span>
+          )}
+          <button className="neon-button small" onClick={handleStopCamera}>
+            Stop camera
+          </button>
         </div>
       )}
     </div>

@@ -7,6 +7,19 @@ import { startRecording, timestampId } from '../record/videoRecorder.js'
 
 const TAIL_SECONDS = 4 // longest wait after the video ends for effects to finish
 
+// A <video> can be connected to Web Audio only once in its life, so its
+// connection is made the first time and reused afterwards (React runs effects
+// twice in development, and again whenever the recording changes).
+const mediaSources = new WeakMap()
+function sourceFor(audio, video) {
+  let source = mediaSources.get(video)
+  if (!source) {
+    source = audio.createMediaElementSource(video)
+    mediaSources.set(video, source)
+  }
+  return source
+}
+
 // Plays a recording with the spells added: the camera video (mirrored, as it
 // looked live), and at each cast its spell's animation at the hand and its
 // sound. Animations that follow the hand (Illumination) follow the recorded
@@ -16,7 +29,8 @@ const TAIL_SECONDS = 4 // longest wait after the video ends for effects to finis
 // recording the picture and the sound (the microphone plus the effect
 // sounds) into a new video: MP4 where the browser can, otherwise WebM. The
 // file is saved into exports/ and offered as a download.
-export default function FinalizePlayer({ recording, track, casts, resolveCast, onExported }) {
+// showExport: false in the Record tab, which only plays recordings back.
+export default function FinalizePlayer({ recording, track, casts, resolveCast, onExported, showExport = true }) {
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
   const control = useRef({})
@@ -34,7 +48,7 @@ export default function FinalizePlayer({ recording, track, casts, resolveCast, o
     const player = createEffectPlayer()
     const audio = audioContext()
     // The video's own sound goes through Web Audio, so an export can record it.
-    const source = audio.createMediaElementSource(video)
+    const source = sourceFor(audio, video)
     source.connect(audio.destination)
     let lastTime = 0
     let last = performance.now()
@@ -181,9 +195,11 @@ export default function FinalizePlayer({ recording, track, casts, resolveCast, o
         <span className="playback-label">
           {clock(state.time)} / {clock(duration)}
         </span>
-        <button className="neon-button" onClick={() => control.current.exportVideo?.()} disabled={state.exporting}>
-          {state.exporting ? `Exporting… ${Math.round(state.progress * 100)}%` : 'Export video'}
-        </button>
+        {showExport && (
+          <button className="neon-button" onClick={() => control.current.exportVideo?.()} disabled={state.exporting}>
+            {state.exporting ? `Exporting… ${Math.round(state.progress * 100)}%` : 'Export video'}
+          </button>
+        )}
       </div>
     </div>
   )

@@ -901,3 +901,79 @@ input[type='range'] {
   margin-top: auto;
   padding-top: 4px;
 }
+
+/* ---------- record tab: split list, spell tick boxes, record bar ---------- */
+
+.list-split {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  height: 100%;
+  min-height: 0;
+}
+.list-split > * {
+  min-height: 0;
+  overflow: hidden;
+}
+.list-split > * + * {
+  border-top: 1px solid var(--line);
+}
+.list-placeholder {
+  padding: 14px;
+}
+.check-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  margin-bottom: 4px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.check-item:hover:not(:disabled) {
+  background: var(--panel-2);
+}
+.check-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.check-box {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font-weight: 700;
+  color: var(--green);
+}
+.check-item.on .check-box {
+  border-color: var(--green);
+  background: rgba(57, 255, 20, 0.12);
+  box-shadow: 0 0 6px rgba(57, 255, 20, 0.5);
+}
+.record-bar {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 8px 12px;
+  background: rgba(7, 7, 13, 0.82);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.record-bar > :last-child {
+  margin-left: auto;
+}
+.record-button {
+  min-width: 190px;
+  font-size: 0.95rem;
+}

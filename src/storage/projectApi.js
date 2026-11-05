@@ -12,6 +12,9 @@ async function request(method, path, body, headers = {}) {
 
 const json = (value) => [JSON.stringify(value), { 'Content-Type': 'application/json' }]
 
+// Pending saves per file, so saves to one file happen in order (see below).
+const queues = new Map()
+
 // ---------- spells ----------
 
 export const listSpells = () => request('GET', 'spells')
@@ -20,7 +23,6 @@ export const deleteSpellFile = (file) => request('DELETE', `spells/${file}`)
 
 // Saves to the same file one after another, in order, so quick edits (typing
 // a name) can't overtake each other and leave an older version on disk.
-const queues = new Map()
 export function saveSpellFile(file, spell) {
   const previous = queues.get(file) ?? Promise.resolve()
   const next = previous.catch(() => {}).then(() => request('PUT', `spells/${file}`, ...json(spell)))
@@ -33,7 +35,13 @@ export function saveSpellFile(file, spell) {
 export const listRecordings = () => request('GET', 'recordings')
 export const recordingVideoUrl = (id) => `/api/recordings/${id}/video`
 export const loadTrack = (id) => request('GET', `recordings/${id}/track`)
-export const saveRecordingMeta = (id, meta) => request('PUT', `recordings/${id}/meta`, ...json(meta))
+export function saveRecordingMeta(id, meta) {
+  const key = `recordings/${id}`
+  const previous = queues.get(key) ?? Promise.resolve()
+  const next = previous.catch(() => {}).then(() => request('PUT', `recordings/${id}/meta`, ...json(meta)))
+  queues.set(key, next)
+  return next
+}
 export const deleteRecordingFiles = (id) => request('DELETE', `recordings/${id}`)
 
 export async function saveRecordingFiles({ id, blob, ext, meta, track }) {

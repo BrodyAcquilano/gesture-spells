@@ -2,7 +2,9 @@
 // the browser's built-in MediaRecorder. No package needed.
 //
 // MP4 (H.264 video, AAC audio) is preferred because it plays everywhere;
-// Edge and Chrome can record it directly. Where they can't, WebM is used.
+// Edge and Chrome can record it directly. If a format is refused (the
+// browser says it supports it but then won't start), the next one is tried,
+// down to WebM and finally the browser's own default.
 
 const TYPES = [
   ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'mp4'],
@@ -11,25 +13,36 @@ const TYPES = [
   ['video/webm;codecs=vp9,opus', 'webm'],
   ['video/webm;codecs=vp8,opus', 'webm'],
   ['video/webm', 'webm'],
+  ['', 'webm'], // whatever the browser picks
 ]
 
-export function pickVideoType() {
-  for (const [mimeType, ext] of TYPES) {
-    if (MediaRecorder.isTypeSupported(mimeType)) return { mimeType, ext }
-  }
-  return { mimeType: '', ext: 'webm' }
-}
+const extensionFor = (mimeType, fallback) => (mimeType.startsWith('video/mp4') ? 'mp4' : mimeType.startsWith('video/webm') ? 'webm' : fallback)
 
-// Starts recording. Returns { startedAt, stop() }:
-//   startedAt  performance.now() when recording actually began, so the times
-//              of things that happen during it can be measured from there
+// Starts recording. Returns { startedAt, ext, mimeType, stop() }:
+//   startedAt  performance.now() when recording began, so the times of
+//              things that happen during it can be measured from there
 //   stop()     resolves to { blob, mimeType, ext, duration } (seconds)
+// Throws if no format can be recorded.
 export function startRecording(stream, { videoBitsPerSecond = 6_000_000 } = {}) {
-  const { mimeType, ext } = pickVideoType()
-  const recorder = new MediaRecorder(stream, { ...(mimeType && { mimeType }), videoBitsPerSecond })
+  let recorder = null
+  let ext = 'webm'
+  let lastError = null
+  for (const [mimeType, typeExt] of TYPES) {
+    if (mimeType && !MediaRecorder.isTypeSupported(mimeType)) continue
+    try {
+      const candidate = new MediaRecorder(stream, { ...(mimeType && { mimeType }), videoBitsPerSecond })
+      candidate.start(1000) // hand over data every second, so nothing is lost
+      recorder = candidate
+      ext = extensionFor(candidate.mimeType || mimeType, typeExt)
+      break
+    } catch (error) {
+      lastError = error
+    }
+  }
+  if (!recorder) throw new Error(`This browser could not start recording${lastError ? `: ${lastError.message}` : ''}`)
+
   const chunks = []
-  const handle = { startedAt: performance.now(), ext, mimeType: recorder.mimeType || mimeType }
-  recorder.addEventListener('start', () => (handle.startedAt = performance.now()))
+  const handle = { startedAt: performance.now(), ext, mimeType: recorder.mimeType }
   recorder.addEventListener('dataavailable', (event) => {
     if (event.data.size) chunks.push(event.data)
   })
@@ -45,7 +58,6 @@ export function startRecording(stream, { videoBitsPerSecond = 6_000_000 } = {}) 
     })
     recorder.addEventListener('error', (event) => reject(event.error ?? new Error('Recording failed')))
   })
-  recorder.start(1000) // hand over data every second, so nothing is lost
   handle.stop = () => {
     if (recorder.state !== 'inactive') recorder.stop()
     return finished
