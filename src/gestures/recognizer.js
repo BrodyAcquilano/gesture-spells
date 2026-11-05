@@ -177,8 +177,12 @@ export function buildRecognizer(spells, overrides = {}) {
     // Clearly nearer than any other spell, even loosely: a movement halfway
     // between two spells (letting go of a pinch looks a bit like a pinch and
     // a bit like opening the hand for a fireball) casts nothing.
-    const rival = Math.min(...scored.filter((s) => s !== winner).map((s) => s.loose))
-    const clear = settings.ratio == null || winner.strict < settings.ratio * rival
+    let rival = null
+    for (const s of scored) if (s !== winner && (!rival || s.loose < rival.loose)) rival = s
+    const rivalDistance = rival ? rival.loose : Infinity
+    const clear = settings.ratio == null || winner.strict < settings.ratio * rivalDistance
+    best.rival = rival ? { spell: rival.entry.spell, distance: rival.loose } : null
+    best.tooClose = !clear // within its limit but too near another spell to be sure
     return { best, match: winner.strict < best.threshold && clear ? best : null }
   }
 

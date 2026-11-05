@@ -7,7 +7,9 @@
 //       hand (pinch point, index fingertip or palm). Without them it appears
 //       at x, y.
 //   follow(points, map)  each frame while a hand is visible: animations that
-//       follow the hand (the candle) move with their anchor point
+//       follow the hand (Brightness, Clock) move with their anchor point, and
+//       ones drawn along the index finger (Sprout, which has setFinger) get
+//       its four joints
 //   update(dt) and draw(ctx) every frame
 //   pause() / resume()  freeze and continue everything, sound and video included
 //   busy()  true while anything is still playing. Nothing is cut short, so a
@@ -43,12 +45,16 @@ export function createEffectPlayer() {
     handle.onEnd(() => sounds.delete(handle))
   }
 
-  function startAnimation(animation, x, y, ctx) {
+  // The index finger's four joints (knuckle to tip) in canvas pixels.
+  const indexFinger = (points, map) => [5, 6, 7, 8].map((i) => map(points[i]))
+
+  function startAnimation(animation, x, y, ctx, finger) {
     if (!animation) return
     const procedural = PROCEDURAL_ANIMATIONS[animation.procedural]
     if (procedural) {
       const instance = procedural.create(x, y, ctx.canvas.height, ctx.canvas.width)
       if (procedural.follow) instance.anchor = procedural.anchor
+      if (finger && instance.setFinger) instance.setFinger(finger, true)
       instances.push(instance)
       return
     }
@@ -73,13 +79,14 @@ export function createEffectPlayer() {
   return {
     cast({ animation, audio, points, map, x, y, label, sound = true }) {
       if (points && map) [x, y] = map(anchorPoint(points, anchorOf(animation)))
-      pending.push({ animation, x, y })
+      pending.push({ animation, x, y, finger: points && map ? indexFinger(points, map) : null })
       if (sound) playSound(audio)
       if (label) labels.push({ text: label, x, y, age: 0 })
     },
     follow(points, map) {
       for (const instance of instances) {
         if (instance.anchor) instance.setPosition(...map(anchorPoint(points, instance.anchor)))
+        if (instance.setFinger) instance.setFinger(indexFinger(points, map))
       }
     },
     update(dt) {
@@ -96,7 +103,7 @@ export function createEffectPlayer() {
       labels = labels.filter((label) => label.age < LABEL_SECONDS)
     },
     draw(ctx) {
-      for (const { animation, x, y } of pending) startAnimation(animation, x, y, ctx)
+      for (const { animation, x, y, finger } of pending) startAnimation(animation, x, y, ctx, finger)
       pending = []
       const size = ctx.canvas.height * 0.45
       for (const overlay of overlays) {

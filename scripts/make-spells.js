@@ -202,6 +202,28 @@ function middleFingerGesture({ ms, fromFist }) {
   }
 }
 
+// Index-Sprout: the index finger raised on its own, pointing up, from a fist
+// (or a loosely curled hand), with the thumb tucked in over the curled middle
+// finger (not sticking out). The hand lifts a little.
+function indexFingerGesture({ ms, fromFist }) {
+  const fistCurl = { index: 1, middle: 1, ring: 1, pinky: 1 }
+  const fist = pose({ curl: fistCurl })
+  const tucked = lerp(fist[10], fist[14], between(0, 0.35))
+  const before = fromFist
+    ? pose({ curl: fistCurl, thumbTip: scale(add(fist[6], fist[10]), 0.5) })
+    : pose({ curl: { index: 0.35, middle: 0.45, ring: 0.5, pinky: 0.55 }, thumbTip: lerp(OPEN[4], tucked, 0.5) })
+  const after = pose({
+    curl: { index: between(0, 0.1), middle: between(0.85, 1), ring: between(0.85, 1), pinky: between(0.85, 1) },
+    thumbTip: tucked,
+  })
+  return {
+    keys: [{ at: 0, pose: before }, { at: ms, pose: after }],
+    jolt: 0.03,
+    grow: between(1, 1.06),
+    travel: [between(-0.05, 0.05), between(-0.25, -0.05)],
+  }
+}
+
 function poseAt(keys, t) {
   if (t <= keys[0].at) return keys[0].pose
   for (let i = 1; i < keys.length; i++) {
@@ -381,6 +403,23 @@ const spells = [
       description: `Raise your middle finger from a fist: a gothic clock appears above it, its hands spinning fast and slowing tick by tick to a stop, as time winds down. ${GENERATED_NOTE}`,
       animationId: 'builtin:clock',
       audioId: 'builtin:clock-tick',
+      sensitivity: 1,
+    },
+  },
+  {
+    file: 'index-sprout.json',
+    regenerate: true,
+    // Half seen from the back of the hand; most start from a fist.
+    examples: () =>
+      Array.from({ length: COUNT }, (_, i) =>
+        example(() => indexFingerGesture({ ms: 200 + ((i * 3) % COUNT) * 28, fromFist: i % 3 !== 2 }), placement(i, i % 4 < 2 ? 'back' : 'palm'), i),
+      ),
+    spell: {
+      id: 'builtin:index-sprout',
+      name: 'Index-Sprout',
+      description: `Raise your index finger from a fist, thumb tucked in: your finger turns into a branch that grows past your fingertip and opens into a sprout with two leaves, creaking as it grows. ${GENERATED_NOTE}`,
+      animationId: 'builtin:sprout',
+      audioId: 'builtin:growth',
       sensitivity: 1,
     },
   },

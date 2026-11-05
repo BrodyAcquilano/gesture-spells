@@ -192,9 +192,11 @@ export default function LiveCaster({ recognize = true, spellIds = null, details,
                 {stats.casts} cast{stats.casts === 1 ? '' : 's'}
                 {stats.last && ` · last: ${stats.last}`}
               </span>
-              <span title="After each movement: the nearest spell, how close the movement was, and that spell's limit. It casts when the first number is below the second.">
+              <span title="After each movement: the nearest spell, how close the movement was, and that spell's limit (it casts when the first number is below the second), then the next nearest spell. A spell within its limit doesn't cast if the next one is nearly as close (under 0.7 × as far is needed).">
                 {stats.best
-                  ? `last move: ${stats.best.spell.name} ${stats.best.distance.toFixed(2)} / ${stats.best.threshold.toFixed(2)}`
+                  ? `last move: ${stats.best.spell.name} ${stats.best.distance.toFixed(2)} / ${stats.best.threshold.toFixed(2)}${
+                      stats.best.rival ? ` · next ${stats.best.rival.spell.name} ${stats.best.rival.distance.toFixed(2)}` : ''
+                    }${stats.best.tooClose && stats.best.distance < stats.best.threshold ? ' · too close to call' : ''}`
                   : 'last move: —'}
               </span>
             </>

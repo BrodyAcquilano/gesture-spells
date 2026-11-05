@@ -5,7 +5,7 @@
 //   - the spells' examples, replayed live and unseen: no wrong spell, the
 //     same with the other hand or a misread left/right label,
 //     nothing cast when played backwards, and at least 80% cast
-//   - the spark chime, fire crackle, light swell and clock tick: length, level, fade to silence
+//   - the spark chime, fire crackle, light swell, clock tick and growth: length, level, fade to silence
 // Run with `npm run check`.
 import { dtw } from '../src/gestures/dtw.js'
 import { buildRecognizer, createLiveMatcher } from '../src/gestures/recognizer.js'
@@ -356,6 +356,28 @@ const ratios = clock.ticks.slice(1).map((t) => {
 check('every tick stands out', ratios.every((r) => r > 2), `quietest tick ${Math.min(...ratios).toFixed(1)}× the moment before it`)
 const clockWav = await renderClockTick()
 check('clock tick WAV has header + 16-bit stereo samples', clockWav.blob.size === 44 + clockLength * 4, `${clockWav.blob.size} bytes`)
+
+// ---------- growth ----------
+const { synthesiseGrowth, renderGrowth, GROWTH_SECONDS } = await import('../src/effects/growthSound.js')
+const growth = synthesiseGrowth()
+const growthLength = growth.left.length
+check('growth is 3.6 s long', growthLength === Math.ceil(GROWTH_SECONDS * SAMPLE_RATE), `${(growthLength / SAMPLE_RATE).toFixed(2)} s`)
+let growthPeak = 0
+for (let i = 0; i < growthLength; i++) growthPeak = Math.max(growthPeak, Math.abs(growth.left[i]), Math.abs(growth.right[i]))
+check('growth peak is 0.8 (no clipping)', Math.abs(growthPeak - 0.8) < 1e-3, growthPeak.toFixed(3))
+check('growth ends in silence', growth.left[growthLength - 1] === 0 && growth.right[growthLength - 1] === 0)
+const growthLevel = (from, to) => {
+  let sum = 0
+  const a = Math.round(from * SAMPLE_RATE)
+  const b = Math.round(to * SAMPLE_RATE)
+  for (let i = a; i < b; i++) sum += growth.left[i] ** 2 + growth.right[i] ** 2
+  return Math.sqrt(sum / (2 * (b - a)))
+}
+const whileGrowing = growthLevel(0.2, 1.7)
+const asLeavesOpen = growthLevel(2.6, 3.1)
+check('growth creaks loudest while the branch grows, softer as the leaves open', whileGrowing > 2 * asLeavesOpen && asLeavesOpen > 0, `${whileGrowing.toFixed(3)} then ${asLeavesOpen.toFixed(3)}`)
+const growthWav = await renderGrowth()
+check('growth WAV has header + 16-bit stereo samples', growthWav.blob.size === 44 + growthLength * 4, `${growthWav.blob.size} bytes`)
 
 console.log(failures ? `\n${failures} check(s) failed` : '\nAll checks passed')
 process.exit(failures ? 1 : 0)

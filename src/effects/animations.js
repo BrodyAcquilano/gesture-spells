@@ -7,6 +7,7 @@ import { createCoins } from './coins.js'
 import { createIllumination } from './illumination.js'
 import { createFireball } from './fireball.js'
 import { createClock } from './clock.js'
+import { createSprout } from './sprout.js'
 
 export const PROCEDURAL_ANIMATIONS = {
   coins: {
@@ -36,6 +37,11 @@ export const PROCEDURAL_ANIMATIONS = {
     anchor: 'middleTip',
     follow: true,
     create: (x, y, height) => createClock(x, y, height),
+  },
+  sprout: {
+    anchor: 'indexTip',
+    follow: true, // drawn along the whole index finger (setFinger)
+    create: (x, y, height) => createSprout(x, y, height),
   },
 }
 

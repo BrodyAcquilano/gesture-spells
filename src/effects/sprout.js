@@ -1,0 +1,276 @@
+// "Sprout": the index finger turns into a branch, which grows on past the
+// fingertip and opens into a sprout with two leaves (about 5 s in all). It is
+// drawn along the finger's joints every frame, so it bends and moves with the
+// finger (setFinger).
+//
+// Stages:
+//   0   – 0.9 s  bark creeps up the finger from the knuckle to the tip
+//   0.9 – 1.7 s  the branch grows on past the fingertip, about half a finger
+//                length, curving slightly
+//   1.7 – 3.3 s  a green shoot comes out of the branch's end and two leaves
+//                slowly unfold from it, with a bud between them and a few
+//                specks of green light
+//   then it holds, sways gently, and fades out by about 5.2 s
+//
+// The bark is one filled outline per frame (a few straight lines, no
+// shadows); the leaf is drawn once into a small image and stamped twice.
+
+const FINGER_UNTIL = 0.9
+const BRANCH_UNTIL = 1.7
+const SHOOT_UNTIL = 2.1
+const LEAVES_UNTIL = 3.3
+const HOLD_UNTIL = 4.6
+const FADE = 0.6
+const END = HOLD_UNTIL + FADE
+const EXTEND = 0.5 // the branch past the fingertip, as a share of the finger's length
+
+const BARK = '#6b4423'
+const BARK_DARK = '#2e1a0c'
+const BARK_LIGHT = '#a7773f'
+
+const clamp01 = (x) => Math.max(0, Math.min(1, x))
+const ease = (x) => 1 - (1 - clamp01(x)) ** 3
+const easeBack = (x) => {
+  const k = clamp01(x) - 1
+  return 1 + 2.2 * k ** 3 + 1.2 * k ** 2
+}
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1]]
+const add = (a, b) => [a[0] + b[0], a[1] + b[1]]
+const scale = (a, k) => [a[0] * k, a[1] * k]
+const length = (a) => Math.hypot(a[0], a[1])
+const unit = (a) => {
+  const l = length(a) || 1
+  return [a[0] / l, a[1] / l]
+}
+
+// A leaf pointing up from the bottom centre of its image.
+function leafSprite(height) {
+  const width = height * 0.5
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.ceil(width + 4)
+  canvas.height = Math.ceil(height + 4)
+  const ctx = canvas.getContext('2d')
+  ctx.translate(canvas.width / 2, canvas.height - 2)
+  const shape = new Path2D()
+  shape.moveTo(0, 0)
+  shape.bezierCurveTo(width * 0.55, -height * 0.2, width * 0.5, -height * 0.7, 0, -height)
+  shape.bezierCurveTo(-width * 0.5, -height * 0.7, -width * 0.55, -height * 0.2, 0, 0)
+  const fill = ctx.createLinearGradient(-width / 2, 0, width / 2, -height)
+  fill.addColorStop(0, '#2f8f3a')
+  fill.addColorStop(0.6, '#5cc85a')
+  fill.addColorStop(1, '#a6ef7c')
+  ctx.fillStyle = fill
+  ctx.fill(shape)
+  ctx.strokeStyle = '#1d5a24'
+  ctx.lineWidth = Math.max(1, height * 0.02)
+  ctx.stroke(shape)
+  // Midrib and veins.
+  ctx.strokeStyle = 'rgba(220, 255, 200, 0.6)'
+  ctx.lineWidth = Math.max(1, height * 0.018)
+  ctx.beginPath()
+  ctx.moveTo(0, -height * 0.05)
+  ctx.lineTo(0, -height * 0.9)
+  for (const k of [0.3, 0.5, 0.7]) {
+    ctx.moveTo(0, -height * k)
+    ctx.lineTo(width * 0.28, -height * (k + 0.12))
+    ctx.moveTo(0, -height * k)
+    ctx.lineTo(-width * 0.28, -height * (k + 0.12))
+  }
+  ctx.stroke()
+  return canvas
+}
+
+// x, y: the index fingertip; size: the canvas height. Without a hand (the
+// library preview) the finger is imagined pointing straight up to x, y.
+export function createSprout(x, y, size) {
+  let t = 0
+  const defaultLength = size * 0.16
+  let finger = [0.95, 0.62, 0.3, 0].map((k) => [x, y + defaultLength * k])
+  let leaf = null
+  let leafFor = 0
+  const motes = Array.from({ length: 10 }, () => ({
+    angle: Math.random() * Math.PI * 2,
+    speed: 0.25 + Math.random() * 0.5,
+    life: 0.8 + Math.random() * 0.9,
+    phase: Math.random() * Math.PI * 2,
+  }))
+
+  return {
+    // Follow the finger, easing so tracker jitter doesn't shake the branch.
+    setFinger(points, immediately = false) {
+      finger = finger.map((old, i) => (immediately ? [...points[i]] : add(old, scale(sub(points[i], old), 0.5))))
+    },
+    setPosition() {
+      // The finger's joints (setFinger) say where everything goes.
+    },
+    get done() {
+      return t > END
+    },
+    update(dt) {
+      t += dt
+    },
+    draw(ctx) {
+      const alpha = t > HOLD_UNTIL ? clamp01(1 - (t - HOLD_UNTIL) / FADE) : 1
+      if (alpha <= 0) return
+      const fingerLength = length(sub(finger[1], finger[0])) + length(sub(finger[2], finger[1])) + length(sub(finger[3], finger[2]))
+      if (fingerLength < 2) return
+      const tip = finger[3]
+      const dir = unit(add(sub(finger[3], finger[2]), sub(finger[3], finger[1])))
+      const side = [-dir[1], dir[0]]
+      // The branch past the fingertip: a gentle curve.
+      const extend = fingerLength * EXTEND
+      const sway = Math.sin(t * 1.8) * 0.04
+      const branch = [0.25, 0.5, 0.75, 1].map((k) => add(tip, add(scale(dir, extend * k), scale(side, extend * (0.12 * k * k + sway * k)))))
+      const path = [...finger, ...branch]
+      const widthAt = (i) => fingerLength * [0.27, 0.25, 0.23, 0.2, 0.16, 0.13, 0.1, 0.08][i]
+
+      // How much of the path has grown, in pixels from the knuckle.
+      const segment = path.slice(1).map((p, i) => length(sub(p, path[i])))
+      const fingerPart = segment.slice(0, 3).reduce((a, b) => a + b, 0)
+      const branchPart = segment.slice(3).reduce((a, b) => a + b, 0)
+      const grown = fingerPart * ease(t / FINGER_UNTIL) + branchPart * ease((t - FINGER_UNTIL) / (BRANCH_UNTIL - FINGER_UNTIL))
+
+      // The grown part of the path, cut off at `grown`.
+      const shown = [path[0]]
+      const widths = [widthAt(0)]
+      let left = grown
+      for (let i = 0; i < segment.length && left > 0; i++) {
+        const k = Math.min(1, left / (segment[i] || 1))
+        shown.push(add(path[i], scale(sub(path[i + 1], path[i]), k)))
+        widths.push(widthAt(i) + (widthAt(i + 1) - widthAt(i)) * k)
+        left -= segment[i]
+      }
+
+      ctx.save()
+      ctx.globalAlpha = alpha
+      if (shown.length > 1) {
+        // Bark: a tapering outline with a rounded growing end.
+        const normals = shown.map((p, i) => {
+          const a = shown[Math.max(0, i - 1)]
+          const b = shown[Math.min(shown.length - 1, i + 1)]
+          const d = unit(sub(b, a))
+          return [-d[1], d[0]]
+        })
+        const outline = new Path2D()
+        shown.forEach((p, i) => {
+          const q = add(p, scale(normals[i], widths[i] / 2))
+          if (i === 0) outline.moveTo(...q)
+          else outline.lineTo(...q)
+        })
+        const end = shown[shown.length - 1]
+        const endAngle = Math.atan2(normals[normals.length - 1][1], normals[normals.length - 1][0])
+        outline.arc(end[0], end[1], widths[widths.length - 1] / 2, endAngle, endAngle + Math.PI, true)
+        for (let i = shown.length - 1; i >= 0; i--) outline.lineTo(...add(shown[i], scale(normals[i], -widths[i] / 2)))
+        outline.closePath()
+        ctx.fillStyle = BARK
+        ctx.fill(outline)
+        ctx.strokeStyle = BARK_DARK
+        ctx.lineWidth = Math.max(1, fingerLength * 0.012)
+        ctx.stroke(outline)
+        // A lighter streak down one side, where the light catches it.
+        ctx.strokeStyle = BARK_LIGHT
+        ctx.globalAlpha = alpha * 0.7
+        ctx.lineWidth = Math.max(1, fingerLength * 0.025)
+        ctx.beginPath()
+        shown.forEach((p, i) => {
+          const q = add(p, scale(normals[i], widths[i] * 0.22))
+          if (i === 0) ctx.moveTo(...q)
+          else ctx.lineTo(...q)
+        })
+        ctx.stroke()
+        // Bark rings: short dark strokes across it, at fixed places.
+        ctx.globalAlpha = alpha * 0.8
+        ctx.strokeStyle = BARK_DARK
+        ctx.lineWidth = Math.max(1, fingerLength * 0.012)
+        ctx.beginPath()
+        let along = 0
+        let next = 0
+        const marks = [0.12, 0.27, 0.41, 0.58, 0.72, 0.86, 1.05, 1.25]
+        for (let i = 1; i < shown.length; i++) {
+          const seg = length(sub(shown[i], shown[i - 1]))
+          while (next < marks.length && marks[next] * fingerLength <= along + seg) {
+            const k = (marks[next] * fingerLength - along) / (seg || 1)
+            const p = add(shown[i - 1], scale(sub(shown[i], shown[i - 1]), k))
+            const w = widths[i - 1] + (widths[i] - widths[i - 1]) * k
+            const n = normals[i]
+            ctx.moveTo(...add(p, scale(n, w * 0.38)))
+            ctx.quadraticCurveTo(...add(p, scale(dir, w * 0.15)), ...add(p, scale(n, -w * 0.3)))
+            next++
+          }
+          along += seg
+        }
+        ctx.stroke()
+        ctx.globalAlpha = alpha
+      }
+
+      // The shoot, leaves and bud at the branch's end.
+      if (t > BRANCH_UNTIL) {
+        const base = branch[branch.length - 1]
+        const branchDir = unit(sub(branch[3], branch[2]))
+        const shootLength = fingerLength * 0.14 * ease((t - BRANCH_UNTIL) / (SHOOT_UNTIL - BRANCH_UNTIL))
+        const shootTip = add(base, scale(branchDir, shootLength))
+        ctx.strokeStyle = '#4aa64a'
+        ctx.lineCap = 'round'
+        ctx.lineWidth = Math.max(1, fingerLength * 0.045)
+        ctx.beginPath()
+        ctx.moveTo(...base)
+        ctx.lineTo(...shootTip)
+        ctx.stroke()
+
+        const leafHeight = fingerLength * 0.42
+        if (!leaf || Math.abs(leafFor - leafHeight) > leafHeight * 0.25) {
+          leaf = leafSprite(leafHeight)
+          leafFor = leafHeight
+        }
+        const pointing = Math.atan2(branchDir[0], -branchDir[1])
+        const open = (delay) => clamp01((t - SHOOT_UNTIL + 0.1 - delay) / (LEAVES_UNTIL - SHOOT_UNTIL - 0.2))
+        for (const [turn, delay] of [
+          [-1, 0],
+          [1, 0.25],
+        ]) {
+          const k = open(delay)
+          if (k <= 0) continue
+          const grow = 0.15 + 0.85 * easeBack(k)
+          const angle = pointing + turn * (0.12 + 0.85 * ease(k) + 0.04 * Math.sin(t * 2.2 + turn))
+          ctx.save()
+          ctx.translate(...shootTip)
+          ctx.rotate(angle)
+          ctx.scale(grow * (leafHeight / leafFor), grow * (leafHeight / leafFor))
+          ctx.drawImage(leaf, -leaf.width / 2, -leaf.height + 2)
+          ctx.restore()
+        }
+        // The bud between the leaves.
+        const bud = ease((t - SHOOT_UNTIL) / 1.2)
+        if (bud > 0) {
+          ctx.save()
+          ctx.translate(...shootTip)
+          ctx.rotate(pointing)
+          ctx.fillStyle = '#b8f28c'
+          ctx.strokeStyle = '#2f7a35'
+          ctx.lineWidth = Math.max(1, fingerLength * 0.01)
+          ctx.beginPath()
+          ctx.ellipse(0, -fingerLength * 0.06 * bud, fingerLength * 0.035 * bud, fingerLength * 0.07 * bud, 0, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.stroke()
+          ctx.restore()
+        }
+        // Specks of green light drifting up from the sprout as it opens.
+        const since = t - SHOOT_UNTIL
+        if (since > 0) {
+          ctx.globalCompositeOperation = 'lighter'
+          for (const m of motes) {
+            if (since > m.life + 0.6) continue
+            const d = fingerLength * m.speed * since
+            const p = add(shootTip, [Math.cos(m.angle) * d * 0.6, Math.sin(m.angle) * d * 0.4 - d * 0.5])
+            const fade = clamp01(1 - since / (m.life + 0.6)) * (0.6 + 0.4 * Math.sin(t * 9 + m.phase))
+            ctx.fillStyle = `rgba(170, 255, 140, ${0.8 * fade})`
+            ctx.beginPath()
+            ctx.arc(p[0], p[1], Math.max(1, fingerLength * 0.018), 0, Math.PI * 2)
+            ctx.fill()
+          }
+        }
+      }
+      ctx.restore()
+    },
+  }
+}

@@ -22,5 +22,11 @@
     "name": "Clock-Tick",
     "procedural": "clock-tick",
     "description": "A clock ticking fast, then gradually slowing down, each tick lower and longer, over a low tone sliding down, ending with a soft low bell as it stops (4.2 s). The ticks match the Clock animation's second hand. Computed sample by sample in JavaScript (src/effects/clockSound.js)."
+  },
+  {
+    "id": "builtin:growth",
+    "name": "Growth",
+    "procedural": "growth",
+    "description": "Wood creaking and groaning with a few sharp cracks while the branch grows, softening into a gentle leafy rustle as the sprout opens (3.6 s). Computed sample by sample in JavaScript (src/effects/growthSound.js)."
   }
 ]
