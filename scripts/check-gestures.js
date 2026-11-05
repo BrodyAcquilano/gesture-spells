@@ -172,9 +172,15 @@ for (const [name, at] of Object.entries(negatives)) {
 // different starting position) it should still cast its own spell.
 const { readFileSync } = await import('node:fs')
 const spellsDir = new URL('../public/library/spells/', import.meta.url)
-const builtIns = JSON.parse(readFileSync(new URL('index.json', spellsDir), 'utf8')).map((file) =>
+// Every spell in the spellbook (all spells are files now). A spell needs at
+// least two examples to be tested this way, since one is held back.
+const allSpells = JSON.parse(readFileSync(new URL('index.json', spellsDir), 'utf8')).map((file) =>
   JSON.parse(readFileSync(new URL(file, spellsDir), 'utf8')),
 )
+const builtIns = allSpells.filter((spell) => (spell.gesture?.examples?.length ?? 0) >= 2)
+for (const spell of allSpells) {
+  if (!builtIns.includes(spell)) console.log(`info  ${spell.name}: fewer than 2 examples, not tested`)
+}
 function stream(frames) {
   const step = 1000 / 30
   const out = []

@@ -9,14 +9,16 @@ import SpellPlayback from '../components/SpellPlayback.jsx'
 
 // The spellbook: each spell has a recorded gesture, and an animation and an
 // audio file chosen from the shared library. Any of the three can be missing.
-// Built-in spells ship with the app and are read-only; "Make a copy" gives an
-// editable version.
+// Every spell is a file in public/library/spells/, so all of them can be
+// edited, copied ("Make a copy") and deleted, and the changes go into the
+// repository with the next push.
 export default function SpellsTab() {
-  const { spells, library, findFile, createSpell, updateSpell, removeSpell } = useData()
+  const { spells, spellsReadOnly, library, findFile, createSpell, updateSpell, removeSpell } = useData()
   const [selectedId, setSelectedId] = useState(null)
   const [recording, setRecording] = useState(false)
   const selected = spells.find((spell) => spell.id === selectedId) ?? spells[0]
-  const locked = Boolean(selected?.builtIn)
+  // Spells are files saved by the dev server; without it they can only be viewed.
+  const locked = spellsReadOnly
 
   function select(id) {
     setSelectedId(id)
@@ -61,11 +63,11 @@ export default function SpellsTab() {
           items={spells.map((spell) => ({
             id: spell.id,
             name: spell.name || 'Untitled',
-            meta: spell.builtIn ? 'built-in' : spell.gesture?.examples?.length ? `${spell.gesture.examples.length} ex.` : 'no gesture',
+            meta: spell.gesture?.examples?.length ? `${spell.gesture.examples.length} ex.` : 'no gesture',
           }))}
           selectedId={selected?.id}
           onSelect={select}
-          onAdd={() => handleNew()}
+          onAdd={locked ? null : () => handleNew()}
           addLabel="New spell"
           empty="No spells yet. Press + to make one."
         />
@@ -85,16 +87,16 @@ export default function SpellsTab() {
                   aria-label="Spell name"
                 />
               )}
-              <div className="button-row">
-                <button className="neon-button small" onClick={() => handleNew(selected)}>
-                  Make a copy
-                </button>
-                {!locked && (
+              {!locked && (
+                <div className="button-row">
+                  <button className="neon-button small" onClick={() => handleNew(selected)}>
+                    Make a copy
+                  </button>
                   <button className="neon-button small danger" onClick={handleDelete}>
                     Delete spell
                   </button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
             <div className="details-grid">
               <dl className="facts">
@@ -153,7 +155,7 @@ export default function SpellsTab() {
                   />
                 </dd>
                 <dt>Created</dt>
-                <dd>{locked ? 'Built-in' : formatDate(selected.createdAt)}</dd>
+                <dd>{formatDate(selected.createdAt)}</dd>
               </dl>
               <label className="field">
                 <span>Description</span>
@@ -166,7 +168,7 @@ export default function SpellsTab() {
                     placeholder="What the spell does…"
                   />
                 )}
-                {locked && <p className="muted small">Built-in spells can&apos;t be changed. Make a copy to edit one.</p>}
+                {locked && <p className="muted small">Spells are read-only here: start the app with npm run dev to edit and save them.</p>}
               </label>
             </div>
           </div>

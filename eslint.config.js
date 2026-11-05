@@ -23,7 +23,7 @@ export default defineConfig([
     languageOptions: { globals: globals.worker },
   },
   {
-    files: ['scripts/**/*.js', 'vite.config.js'],
+    files: ['scripts/**/*.js', 'server/**/*.js', 'vite.config.js'],
     languageOptions: { globals: globals.node },
   },
 ])

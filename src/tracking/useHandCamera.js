@@ -11,13 +11,18 @@ import { toPoints } from './landmarks.js'
 // now:   milliseconds (performance.now), dt: seconds since the last call
 //
 // The loop lives outside React state on purpose: it runs 30–60 times a second.
-export function useHandCamera(onFrame) {
+//
+// With { audio: true } it also asks for the microphone (for recording); if
+// that is refused it carries on with the camera alone. getStream() returns
+// the camera (and microphone) stream while running.
+export function useHandCamera(onFrame, { audio = false } = {}) {
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
   const runRef = useRef(null) // { stream, frame } while running
   const onFrameRef = useRef(onFrame)
   const [status, setStatus] = useState('idle') // idle | loading | running | error
   const [error, setError] = useState('')
+  const [hasMicrophone, setHasMicrophone] = useState(false)
 
   useEffect(() => {
     onFrameRef.current = onFrame
@@ -46,23 +51,27 @@ export function useHandCamera(onFrame) {
     setStatus('loading')
     setError('')
     try {
-      const [tracker, stream] = await Promise.all([
-        loadHandTracker(),
-        navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: false,
-        }),
-      ])
+      const video = { width: { ideal: 1280 }, height: { ideal: 720 } }
+      const openCamera = async () => {
+        if (!audio) return navigator.mediaDevices.getUserMedia({ video, audio: false })
+        try {
+          return await navigator.mediaDevices.getUserMedia({ video, audio: true })
+        } catch {
+          return navigator.mediaDevices.getUserMedia({ video, audio: false })
+        }
+      }
+      const [tracker, stream] = await Promise.all([loadHandTracker(), openCamera()])
+      setHasMicrophone(stream.getAudioTracks().length > 0)
       run.stream = stream
       if (run.stopped) {
         stream.getTracks().forEach((track) => track.stop())
         return
       }
-      const video = videoRef.current
-      video.srcObject = stream
-      await video.play()
+      const element = videoRef.current
+      element.srcObject = stream
+      await element.play()
       setStatus('running')
-      loop(run, tracker, video, canvasRef.current, onFrameRef)
+      loop(run, tracker, element, canvasRef.current, onFrameRef)
     } catch (err) {
       if (run.stopped) return
       release()
@@ -73,9 +82,11 @@ export function useHandCamera(onFrame) {
           : `Could not start the camera: ${err.message}`,
       )
     }
-  }, [release])
+  }, [release, audio])
 
-  return { videoRef, canvasRef, status, error, start, stop }
+  const getStream = useCallback(() => runRef.current?.stream ?? null, [])
+
+  return { videoRef, canvasRef, status, error, hasMicrophone, start, stop, getStream }
 }
 
 function loop(run, tracker, video, canvas, onFrameRef) {

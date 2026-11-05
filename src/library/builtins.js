@@ -44,20 +44,20 @@ export const PROCEDURAL = {
         'A bright strike, then a rippling bell chime with a sparkly shimmer and an echo, about 1.8 s, fading out. Used by Pinch-Coins. Computed sample by sample in JavaScript and saved as a WAV file (src/effects/sparkSound.js).',
     },
     {
-      id: 'builtin:fire-crackle',
-      name: 'Fire-Crackle',
-      procedural: 'fire-crackle',
-      render: renderFireCrackle,
-      description:
-        'A rushing whoosh and roar with crackles and pops, building for 0.9 s like the fireball, then dying away (2 s). Computed sample by sample in JavaScript and saved as a WAV file (src/effects/fireSound.js).',
-    },
-    {
       id: 'builtin:light-swell',
       name: 'Light-Swell',
       procedural: 'light-swell',
       render: renderLightSwell,
       description:
         'A glassy ping as the light flares, then a warm, bright chord that swells and holds while it shines, with an airy shimmer and twinkles, fading out with the Illumination (3.3 s). Computed sample by sample in JavaScript and saved as a WAV file (src/effects/lightSound.js).',
+    },
+    {
+      id: 'builtin:fire-crackle',
+      name: 'Fire-Crackle',
+      procedural: 'fire-crackle',
+      render: renderFireCrackle,
+      description:
+        'A rushing whoosh and roar with crackles and pops, building for 0.9 s like the fireball, then dying away (2 s). Computed sample by sample in JavaScript and saved as a WAV file (src/effects/fireSound.js).',
     },
   ],
 }
@@ -74,8 +74,9 @@ export async function loadFileManifest(kind) {
   }
 }
 
-// Spells that ship with the app. They are read-only; "Make a copy" in the
-// Spellbook turns one into an editable spell of your own.
+// The spell files read straight from public/, for when the dev server (which
+// normally lists and saves them, see server/storage.js) isn't running. Spells
+// are read-only then.
 export async function loadBuiltInSpells() {
   const base = `${import.meta.env.BASE_URL}library/spells/`
   try {
@@ -85,7 +86,7 @@ export async function loadBuiltInSpells() {
     const spells = await Promise.all(
       files.map(async (file) => {
         const spellResponse = await fetch(base + file)
-        return spellResponse.ok ? { ...(await spellResponse.json()), builtIn: true } : null
+        return spellResponse.ok ? { ...(await spellResponse.json()), file } : null
       }),
     )
     return spells.filter(Boolean)

@@ -12,6 +12,13 @@
 
 let context = null
 const buffers = new Map() // url -> Promise<AudioBuffer>
+let extraOutput = null // also send sounds here (an export's recording), if set
+
+// While exporting a video, effect sounds go to the export as well as the
+// speakers. Pass null to stop.
+export function setExtraOutput(node) {
+  extraOutput = node
+}
 
 export function audioContext() {
   context ??= new AudioContext()
@@ -50,6 +57,7 @@ export function playSound(url) {
       source = ctx.createBufferSource()
       source.buffer = buffer
       source.connect(ctx.destination)
+      if (extraOutput) source.connect(extraOutput)
       source.onended = finish
       source.start()
     })

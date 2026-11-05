@@ -9,7 +9,7 @@ import FileSelect from '../components/FileSelect.jsx'
 // animation and/or audio file to just that stretch, or to every stretch where
 // a similar gesture appears.
 export default function EditTab() {
-  const { takes, library } = useData()
+  const { recordings, library } = useData()
   const [scope, setScope] = useState('selected') // 'selected' | 'similar'
   const [animationId, setAnimationId] = useState(null)
   const [audioId, setAudioId] = useState(null)
@@ -19,7 +19,7 @@ export default function EditTab() {
       list={
         <ListPanel
           title="Recorded videos"
-          items={takes.map((take) => ({ id: take.id, name: take.name }))}
+          items={recordings.map((r) => ({ id: r.id, name: r.name, meta: `${r.duration.toFixed(0)} s` }))}
           onSelect={() => {}}
           empty="Videos recorded in the Record tab will appear here."
         />

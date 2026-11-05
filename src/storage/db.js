@@ -5,8 +5,8 @@
 // Every store keeps objects with an `id` field as the key.
 //   animations  uploaded animation files
 //   audio       uploaded audio files
-//   spells      spellbook entries (name, gesture, animation id, audio id)
-//   takes       recorded videos (not used yet)
+//   spells      only read once, to move spells made before spells became files
+//   takes       unused (recordings are files in recordings/, see projectApi.js)
 
 const DB_NAME = 'gesture-spells'
 const DB_VERSION = 1

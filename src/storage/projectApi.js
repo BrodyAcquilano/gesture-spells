@@ -1,0 +1,51 @@
+// Talks to the dev server's file storage (server/storage.js): spells saved
+// into the repository, and recordings and exports saved locally.
+
+async function request(method, path, body, headers = {}) {
+  const response = await fetch(`/api/${path}`, { method, body, headers })
+  if (!response.ok) {
+    const detail = await response.json().catch(() => ({}))
+    throw new Error(detail.error ?? `${method} ${path} failed (${response.status})`)
+  }
+  return response.status === 204 ? null : response.json()
+}
+
+const json = (value) => [JSON.stringify(value), { 'Content-Type': 'application/json' }]
+
+// ---------- spells ----------
+
+export const listSpells = () => request('GET', 'spells')
+export const createSpellFile = (spell) => request('POST', 'spells', ...json(spell)).then((result) => result.file)
+export const deleteSpellFile = (file) => request('DELETE', `spells/${file}`)
+
+// Saves to the same file one after another, in order, so quick edits (typing
+// a name) can't overtake each other and leave an older version on disk.
+const queues = new Map()
+export function saveSpellFile(file, spell) {
+  const previous = queues.get(file) ?? Promise.resolve()
+  const next = previous.catch(() => {}).then(() => request('PUT', `spells/${file}`, ...json(spell)))
+  queues.set(file, next)
+  return next
+}
+
+// ---------- recordings ----------
+
+export const listRecordings = () => request('GET', 'recordings')
+export const recordingVideoUrl = (id) => `/api/recordings/${id}/video`
+export const loadTrack = (id) => request('GET', `recordings/${id}/track`)
+export const saveRecordingMeta = (id, meta) => request('PUT', `recordings/${id}/meta`, ...json(meta))
+export const deleteRecordingFiles = (id) => request('DELETE', `recordings/${id}`)
+
+export async function saveRecordingFiles({ id, blob, ext, meta, track }) {
+  await request('PUT', `recordings/${id}/video?ext=${ext}`, blob, { 'Content-Type': blob.type || 'application/octet-stream' })
+  await request('PUT', `recordings/${id}/track`, ...json(track))
+  await saveRecordingMeta(id, meta)
+}
+
+// ---------- exports ----------
+
+// Returns the path the file was saved to.
+export async function saveExportFile(name, blob) {
+  const result = await request('PUT', `exports/${name}`, blob, { 'Content-Type': blob.type || 'application/octet-stream' })
+  return result.path
+}

@@ -18,8 +18,14 @@ npm install
 npm run dev
 ```
 
-Then open http://localhost:5173 in Edge or Chrome and allow the camera when
-asked.
+Then open http://localhost:5173 in Edge or Chrome and allow the camera (and
+the microphone, for recording) when asked.
+
+The dev server also saves files for the app (`server/storage.js`): spells
+into `public/library/spells/`, recordings into `recordings/` and finished
+videos into `exports/`. A browser page can't write files by itself, so
+spells can only be edited, and videos recorded, while `npm run dev` is
+running.
 
 `npm install` also runs `npm run setup`, which copies the MediaPipe runtime
 into `public/mediapipe/` and downloads the hand model (about 8 MB) into
@@ -29,8 +35,8 @@ either goes missing.
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | Serves the app at http://localhost:5173 |
-| `npm run check` | Checks the gesture maths, the built-in spells and the built-in sounds without a camera (see "Checking the maths") |
-| `npm run make-spells` | Regenerates the Snap-Brightness and Push-Fireball spells (see "The built-in spells") |
+| `npm run check` | Checks the gesture maths, the spells and the built-in sounds without a camera (see "Checking the maths") |
+| `npm run make-spells` | Regenerates the gesture examples of Snap-Brightness and Push-Fireball, keeping their edited details (see "The spells") |
 | `npm run build` | Builds the app into `dist/` |
 | `npm run lint` | Checks the code with ESLint |
 | `npm run setup` | Puts the MediaPipe runtime and hand model into `public/` |
@@ -40,8 +46,7 @@ so the app on another port would show an empty library.
 
 ## Quick start
 
-The app comes with three spells ready to use. Built-in spells are named
-*gesture*-*spell*:
+The app comes with three spells ready to use, named *Gesture*-*Spell*:
 
 | Spell | Gesture | Animation | Sound |
 | --- | --- | --- | --- |
@@ -55,13 +60,16 @@ The app comes with three spells ready to use. Built-in spells are named
    together at the moment the spell would cast.
 2. **Record tab.** Press **Start camera** and do one of the gestures. The
    spell's name flashes, its animation appears at your hand and its sound
-   plays.
+   plays. Press **● Record** to record a video while you cast.
+3. **Finalize tab.** Pick the recording. It plays back with the spells'
+   animations and sounds added where you cast them. Press **Export video**
+   for a finished MP4 to download.
 
 You can start a gesture from any hand position: only the way it ends has to
 match. Either hand works.
 
-If a spell never casts, or casts by accident, press **Make a copy** and change
-the copy's **Sensitivity** (higher casts more easily). The **closest** reading
+If a spell never casts, or casts by accident, change its **Sensitivity**
+(higher casts more easily). The **closest** reading
 at the top of the Record view shows how near your movement is to a spell: it
 casts when the first number drops below the second.
 
@@ -98,16 +106,15 @@ Build spells first, then record video while the app recognises them.
 The viewer is an audio player. Built in:
 - **Spark-Chime**: a bright strike, then a rippling bell chime with a
   shimmer and an echo, 1.8 s, fading out
-- **Fire-Crackle**: a whoosh and roar with crackles and pops that builds for
-  0.9 s like the fireball, then dies away, 2 s
 - **Light-Swell**: a glassy ping as the light flares, then a warm, bright
   chord that swells and holds while it shines, with an airy shimmer and
-  twinkles, fading out with the light, 3.3 s.
+  twinkles, fading out with the light, 3.3 s
+- **Fire-Crackle**: a whoosh and roar with crackles and pops that builds for
+  0.9 s like the fireball, then dies away, 2 s.
 
 **Spellbook.** Spells. A spell joins three separate things: a recorded
 gesture, an animation and an audio file from the library.
-- List: the built-in spells first, then your own. The green + makes a new
-  spell.
+- List: every spell. The green + makes a new one.
 - Viewer: one **Play / Pause** button plays the whole spell, looping through
   its examples (shown as "Example 2 of 5") until paused:
   - the recorded gesture, as a moving hand skeleton
@@ -124,17 +131,46 @@ gesture, an animation and an audio file from the library.
   - sensitivity
   - the animation and audio pickers
   - when it was made and recorded
-  - **Make a copy**
-- Built-in spells can't be edited. Make a copy to change one.
+  - **Make a copy** and **Delete spell**
+- Every spell can be edited and deleted, including the three that come with
+  the app. Each is a file in the repository (see "The spells"), so changes,
+  new spells and deletions go to GitHub with your next push.
 - Recording a gesture turns the viewer into the camera. Each recording is
   trimmed to the part where your hand moved.
 
-**Record.** Live casting. Start the camera and do a spell's gesture. When it is
-recognised, the spell's name flashes, its animation appears at your hand and
-its audio plays. Saving the video is coming next.
+**Record.** Live casting and recording.
+- Viewer: the camera. When a spell's gesture is recognised, the spell's name
+  flashes, its animation appears at your hand and its audio plays.
+  **● Record** / **■ Stop recording** records a video, with a timer.
+- While recording, the animations still show but their sounds are muted, so
+  the microphone doesn't record them (Finalize adds them cleanly).
+- Each recording is saved into `recordings/<id>/`:
+  - `video.mp4`: the camera and microphone, exactly as filmed, without
+    effects. It is MP4 where the browser can record it, otherwise WebM.
+  - `track.json`: the hand positions in every frame
+  - `meta.json`: its name, length, and each spell cast (when, which
+    spell, and where the hand was)
+- `recordings/` is git-ignored: recordings stay on this computer.
+- List: your recordings. Select one for its details, **Open in Finalize** or
+  **Delete**.
 
-**Finalize** *(coming soon)*. Review a live recording, fix spells that fired
-at the wrong moment or not at all, and export the video.
+**Finalize.** Turn a recording into a finished video.
+- List: your recordings.
+- Viewer: the recording plays mirrored, as it looked live, with each cast's
+  animation at the hand and its sound, at the moment it was cast. Animations
+  that follow the hand (Illumination) follow the recorded hand. **Play /
+  Pause**, a position slider and the time.
+- Details:
+  - the recording's name (editable), date, length and format
+  - the spells cast, each with its time, animation and sound, and **×** to
+    remove one that fired by mistake
+  - **Detect spells again**: looks for spells in the recorded hand movements
+    with the spellbook as it is now. Use it after adding or changing a
+    spell, or for a recording made in Editing mode.
+- **Export video** plays the recording through once in real time, recording
+  the picture with the animations, your microphone and the spell sounds into
+  one file: MP4 where the browser can (Edge can), otherwise WebM. It is
+  saved into `exports/` (git-ignored) and offered as a **Download** link.
 
 ### Editing mode (after the fact)
 
@@ -142,13 +178,14 @@ Record video first, then find the gestures and add effects.
 
 **Animations, Audio.** The same shared library as in Spellbook mode.
 
-**Record** *(coming soon)*. Records plain video along with its hand-tracking
-data, so gestures can be found later without running the hand model again.
+**Record.** Records video, microphone and hand movements like the
+Spellbook's Record tab, but without recognising spells as you go. The
+recordings are the same ones Finalize lists.
 
 **Edit.** Open a recording, select a stretch on the timeline, then apply an
 animation and/or audio to only that stretch or to every similar gesture in
 the video.
-- List: recorded videos.
+- List: your recordings.
 - Viewer: the open video.
 - Timeline: a video track and an audio track.
 - Details: "only the selected part" or "every similar gesture", plus the
@@ -161,11 +198,17 @@ The controls are in place, but selecting and applying are coming soon.
 Designing animations from particles and shapes, and generating sounds by
 layering waves. Whatever they make will be saved to the shared library.
 
-## The built-in spells
+## The spells
 
-They are JSON files in `public/library/spells/`, listed in its `index.json`.
-Each holds five example recordings of its gesture: hand positions only
-(21 points per hand per frame), no video.
+Every spell is a JSON file in `public/library/spells/`, listed in its
+`index.json`, so spells are part of the repository: a spell you make, edit
+or delete in the app is committed with your next push. A spell holds its
+name, description, animation, audio, sensitivity and its gesture examples:
+hand positions only (21 points per hand per frame), no video. New spells get
+a file named after them, such as `my-spell-x7k2.json`; renaming a spell later
+keeps its file name.
+
+The three that come with the app:
 
 - **Pinch-Coins** uses five real pinches recorded in the app.
 - **Snap-Brightness** and **Push-Fireball** were generated, not recorded, by
@@ -180,8 +223,11 @@ Each holds five example recordings of its gesture: hand positions only
   Each example is moved, turned, scaled and timed a little differently, and
   tracker-like jitter is added. Each one goes through the same trimming as
   the in-app recorder. The generated poses are approximations of real hands,
-  so if these two spells don't cast reliably with your hand, make a copy and
-  raise its sensitivity, or record your own examples.
+  so if these two spells don't cast reliably with your hand, raise their
+  sensitivity, or clear their examples and record your own.
+
+  `npm run make-spells` regenerates their examples and keeps everything else
+  you edited about them.
 
 ## How animations work
 
@@ -228,18 +274,23 @@ Accepted formats are ones Edge and Chrome can play without extra software:
 
 ## Where things are saved
 
-Built-in spells are files in `public/library/spells/`, so they are part of
-the project and its git history.
+| What | Where | In git? |
+| --- | --- | --- |
+| Spells, with their gestures | `public/library/spells/` (one JSON file each) | Yes: committed with your next push |
+| Recordings | `recordings/<id>/` (video, hand track, details) | No: git-ignored, stays on this computer |
+| Exported videos | `exports/` | No: git-ignored |
+| Uploaded animations and sounds | the browser's IndexedDB for this site | No |
 
-Your own spells (with their recorded gestures) and uploaded files are saved
-in the browser's IndexedDB database for this site. They are still there next
-time the app is opened, in the same browser at the same address. The app
-asks the browser to keep the data even when disk space runs low. An
-export/import backup file is planned.
+Spells, recordings and exports are written by the dev server, because a web
+page can't write files on your computer by itself. The page sends them to
+`npm run dev`, which saves them in the project folder (`server/storage.js`).
 
-None of that is in the project folder, so your own spells and uploads never
-end up in git. `.gitignore` also excludes video files saved into the project
-(`recordings/`, `exports/`, and `.webm`, `.mp4`, `.mov` and `.mkv` files),
+Spells made before spells were saved as files were kept in the browser; the
+app moves any it finds into files the first time it opens.
+
+Uploaded files stay in the browser: still there next time the app is opened,
+in the same browser at the same address. `.gitignore` also excludes any
+video files saved into the project (`.webm`, `.mp4`, `.mov`, `.mkv`),
 except built-in animations in `public/library/`.
 
 ## How gestures are recognised
@@ -290,7 +341,7 @@ except built-in animations in `public/library/`.
 
 - dynamic time warping on small cases worked out by hand
 - the recogniser on a synthetic hand
-- the three built-in spells against each other: each example is played
+- every spell against the others: each example is played
   as a live stream to a recogniser that has all three spells but not that
   example, so it has never seen it
 - the built-in sounds.
@@ -324,9 +375,10 @@ Current results:
 | `react-router-dom` | Modes and tabs are routes, e.g. `/spellbook/audio` |
 | `vite`, `eslint` and plugins | Development server, build and lint (development only) |
 
-Everything else comes from the browser: camera (`getUserMedia`), drawing
-(canvas), sound (Web Audio), recording (`MediaRecorder`, next) and storage
-(IndexedDB).
+Everything else comes from the browser: camera and microphone
+(`getUserMedia`), drawing (canvas), sound (Web Audio), recording and MP4
+export (`MediaRecorder`, `canvas.captureStream`) and storage (IndexedDB),
+plus Node's own file functions in the dev server.
 
 ## Code layout
 
@@ -336,23 +388,26 @@ src/
   modes/               each mode and its list of tabs
   tabs/                the tab screens (library, spellbook, record, finalize, edit)
   components/          header, tab bar, list/viewer/details layout, previews,
-                       GestureRecorder, SpellPlayback, LiveCaster
+                       GestureRecorder, SpellPlayback, LiveCaster (camera,
+                       casting, recording), FinalizePlayer (playback, export)
   tracking/            MediaPipe wrapper, camera loop hook, landmark helpers, skeleton drawing
-  gestures/            features, DTW, trimming, the recogniser
+  gestures/            features, DTW, trimming, the recogniser, detecting
+                       spells in a recorded track
   effects/             coins, illumination, fireball, the sounds, WAV encoder,
                        audio engine, effect player
   library/             shared data (library files, spells), accepted formats, built-ins
-  storage/db.js        small IndexedDB wrapper
-public/library/        built-in animation and audio files, and the built-in spells
+  record/              video recording (MediaRecorder, MP4 or WebM)
+  storage/             IndexedDB wrapper; projectApi.js talks to the dev server
+server/storage.js      dev-server routes that save spells, recordings, exports
+public/library/        built-in animation and audio files, and the spells
+recordings/, exports/  your videos (git-ignored)
 scripts/               MediaPipe setup, maths checks, spell generator
 ```
 
 ## Next steps
 
-1. Record and save video, with microphone and effect sounds, in both Record
-   tabs.
-2. Finalize: play back a live recording with its effects, and export.
-3. Editing: video and audio timeline, select a stretch, apply effects, find
+1. Editing: video and audio timeline, select a stretch, apply effects, find
    similar gestures, export.
-4. Export/import the spellbook as a backup file.
-5. The Animation Builder and Audio Lab.
+2. Save uploaded animations and sounds as project files too, so spells that
+   use them work on other computers.
+3. The Animation Builder and Audio Lab.

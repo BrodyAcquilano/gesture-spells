@@ -195,9 +195,24 @@ const spells = [
   },
 ]
 
+// Spells are editable in the app, so if a spell's file already exists only
+// its gesture examples are replaced: its name, description, animation, audio
+// and sensitivity stay as they were edited. A spell deleted in the app is
+// made again (and listed again) by running this.
+const indexUrl = new URL('index.json', spellsDir)
+const index = JSON.parse(readFileSync(indexUrl, 'utf8'))
 for (const { file, spell } of spells) {
-  writeFileSync(new URL(file, spellsDir), JSON.stringify(spell) + '\n')
-  console.log(`${file}: ${spell.gesture.examples.map((e) => `${e.duration} ms`).join(', ')}`)
+  const url = new URL(file, spellsDir)
+  let existing = null
+  try {
+    existing = JSON.parse(readFileSync(url, 'utf8'))
+  } catch {
+    // not there yet
+  }
+  const saved = existing ? { ...existing, gesture: spell.gesture } : spell
+  writeFileSync(url, JSON.stringify(saved) + '\n')
+  if (!index.includes(file)) index.push(file)
+  console.log(`${file}: ${spell.gesture.examples.map((e) => `${e.duration} ms`).join(', ')}${existing ? ' (kept its edited details)' : ''}`)
 }
-writeFileSync(new URL('index.json', spellsDir), JSON.stringify(['pinch-coins.json', 'snap-brightness.json', 'push-fireball.json'], null, 2) + '\n')
+writeFileSync(indexUrl, JSON.stringify(index, null, 2) + '\n')
 console.log('Updated public/library/spells/index.json')
