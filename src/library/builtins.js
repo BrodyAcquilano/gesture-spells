@@ -8,6 +8,7 @@
 // public/library/spells/index.json.
 import { renderSparkChime } from '../effects/sparkSound.js'
 import { renderFireCrackle } from '../effects/fireSound.js'
+import { renderLightSwell } from '../effects/lightSound.js'
 
 export const PROCEDURAL = {
   animations: [
@@ -16,7 +17,7 @@ export const PROCEDURAL = {
       name: 'Coins 🪙',
       procedural: 'coins',
       description:
-        'A quick burst of spinning 🪙 gold coins that fly out from the pinch and fade within about half a second. Drawn by code (src/effects/coins.js).',
+        'A quick burst of spinning 🪙 gold coins that fly out from the pinch, turning slowly, and fade over about a second. Drawn by code (src/effects/coins.js).',
     },
     {
       id: 'builtin:illumination',
@@ -40,7 +41,7 @@ export const PROCEDURAL = {
       procedural: 'spark-chime',
       render: renderSparkChime,
       description:
-        'A bright strike, then a rippling bell chime with a sparkly shimmer and an echo, about 1.8 s, fading out. Used by Pinch coins. Computed sample by sample in JavaScript and saved as a WAV file (src/effects/sparkSound.js).',
+        'A bright strike, then a rippling bell chime with a sparkly shimmer and an echo, about 1.8 s, fading out. Used by Pinch-Coins. Computed sample by sample in JavaScript and saved as a WAV file (src/effects/sparkSound.js).',
     },
     {
       id: 'builtin:fire-crackle',
@@ -49,6 +50,14 @@ export const PROCEDURAL = {
       render: renderFireCrackle,
       description:
         'A rushing whoosh and roar with crackles and pops, building for 0.9 s like the fireball, then dying away (2 s). Computed sample by sample in JavaScript and saved as a WAV file (src/effects/fireSound.js).',
+    },
+    {
+      id: 'builtin:light-swell',
+      name: 'Light-Swell',
+      procedural: 'light-swell',
+      render: renderLightSwell,
+      description:
+        'A glassy ping as the light flares, then a warm, bright chord that swells and holds while it shines, with an airy shimmer and twinkles, fading out with the Illumination (3.3 s). Computed sample by sample in JavaScript and saved as a WAV file (src/effects/lightSound.js).',
     },
   ],
 }

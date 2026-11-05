@@ -6,7 +6,7 @@
 //     and a half pinch are not
 //   - the three built-in spells: each recorded example, unseen, casts its own
 //     spell and no other; reversed it casts nothing
-//   - the spark chime and fire crackle: length, level, fade to silence
+//   - the spark chime, fire crackle and light swell: length, level, fade to silence
 // Run with `npm run check`.
 import { dtw } from '../src/gestures/dtw.js'
 import { buildRecognizer } from '../src/gestures/recognizer.js'
@@ -294,6 +294,33 @@ check(
 )
 const fireWav = await renderFireCrackle()
 check('fire crackle WAV has header + 16-bit stereo samples', fireWav.blob.size === 44 + fireLength * 4, `${fireWav.blob.size} bytes`)
+
+// ---------- light swell ----------
+const { synthesiseLightSwell, renderLightSwell, LIGHT_SECONDS } = await import('../src/effects/lightSound.js')
+const light = synthesiseLightSwell()
+const lightLength = light.left.length
+check('light swell is 3.3 s long', lightLength === Math.ceil(LIGHT_SECONDS * SAMPLE_RATE), `${(lightLength / SAMPLE_RATE).toFixed(2)} s`)
+let lightPeak = 0
+for (let i = 0; i < lightLength; i++) lightPeak = Math.max(lightPeak, Math.abs(light.left[i]), Math.abs(light.right[i]))
+check('light swell peak is 0.8 (no clipping)', Math.abs(lightPeak - 0.8) < 1e-3, lightPeak.toFixed(3))
+check('light swell ends in silence', light.left[lightLength - 1] === 0 && light.right[lightLength - 1] === 0)
+const lightSlices = []
+for (let s0 = 0; s0 + 0.3 <= LIGHT_SECONDS + 1e-9; s0 += 0.3) {
+  let sum = 0
+  const from = Math.round(s0 * SAMPLE_RATE)
+  const to = Math.round((s0 + 0.3) * SAMPLE_RATE)
+  for (let i = from; i < to; i++) sum += light.left[i] ** 2 + light.right[i] ** 2
+  lightSlices.push(Math.sqrt(sum / (2 * (to - from))))
+}
+// It should hold while the light shines (1.8–2.1 s still at least half the
+// level of the ping at the start), then fade.
+check(
+  'light swell holds while the light shines, then fades',
+  lightSlices[6] > lightSlices[0] * 0.5 && lightSlices[lightSlices.length - 1] < lightSlices[6] * 0.1,
+  `loudness per 0.3 s: ${lightSlices.map((v) => v.toFixed(3)).join(' ')}`,
+)
+const lightWav = await renderLightSwell()
+check('light swell WAV has header + 16-bit stereo samples', lightWav.blob.size === 44 + lightLength * 4, `${lightWav.blob.size} bytes`)
 
 console.log(failures ? `\n${failures} check(s) failed` : '\nAll checks passed')
 process.exit(failures ? 1 : 0)

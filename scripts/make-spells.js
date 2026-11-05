@@ -171,9 +171,9 @@ const spells = [
       id: 'builtin:snap-brightness',
       name: 'Snap-Brightness',
       description:
-        'Snap your middle finger against your thumb: a point of light flares at your index fingertip with a chime. The five examples were generated from a real hand shape, not recorded.',
+        'Snap your middle finger against your thumb: a point of light flares at your index fingertip and shines for a few seconds. The five examples were generated from a real hand shape, not recorded.',
       animationId: 'builtin:illumination',
-      audioId: 'builtin:spark-chime',
+      audioId: 'builtin:light-swell',
       sensitivity: 1,
       createdAt: MADE_AT,
       gesture: { examples: makeExamples(snapPoses()) },

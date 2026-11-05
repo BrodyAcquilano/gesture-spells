@@ -46,7 +46,7 @@ The app comes with three spells ready to use. Built-in spells are named
 | Spell | Gesture | Animation | Sound |
 | --- | --- | --- | --- |
 | **Pinch-Coins** | Press thumb and index fingertip together | Coins 🪙: spinning gold coins burst from the pinch | Spark-Chime |
-| **Snap-Brightness** | Snap: middle finger off the thumb into the palm | Illumination: a point of light flares at the index fingertip and shines for about 3 s | Spark-Chime |
+| **Snap-Brightness** | Snap: middle finger off the thumb into the palm | Illumination: a point of light flares at the index fingertip and shines for about 3 s | Light-Swell |
 | **Push-Fireball** | Fist, then fling the hand open and push it at the camera | Fireball: forms at the palm and rushes towards you | Fire-Crackle |
 
 1. **Spellbook → Spellbook tab.** Select a spell and press **Play**. It loops
@@ -99,7 +99,10 @@ The viewer is an audio player. Built in:
 - **Spark-Chime**: a bright strike, then a rippling bell chime with a
   shimmer and an echo, 1.8 s, fading out
 - **Fire-Crackle**: a whoosh and roar with crackles and pops that builds for
-  0.9 s like the fireball, then dies away, 2 s.
+  0.9 s like the fireball, then dies away, 2 s
+- **Light-Swell**: a glassy ping as the light flares, then a warm, bright
+  chord that swells and holds while it shines, with an airy shimmer and
+  twinkles, fading out with the light, 3.3 s.
 
 **Spellbook.** Spells. A spell joins three separate things: a recorded
 gesture, an animation and an audio file from the library.
@@ -187,7 +190,7 @@ Each built-in animation is drawn by code on a canvas, every frame
 
 | Animation | Appears at | How it is drawn |
 | --- | --- | --- |
-| Coins 🪙 | between thumb and index tip | Ten coins thrown out with air drag and gravity, spinning (drawn squashed sideways as they turn), fading out within about half a second. The glowing coin is drawn once into a small image and stamped, which is far faster than drawing emoji text with a glow every frame |
+| Coins 🪙 | between thumb and index tip | Ten coins thrown out with air drag and gravity, slowly spinning (drawn squashed sideways as they turn), fading out over about a second. The glowing coin is drawn once into a small image and stamped, which is far faster than drawing emoji text with a glow every frame |
 | Illumination | the index fingertip, following it as it moves | A flash ring, a large warm halo, a white-hot core, two crossing light streaks and drifting specks, added together with additive blending so overlapping light goes towards white. Full brightness for about 2 s, then it fades out by about 3 s |
 | Fireball | the palm | A ball (white-hot to yellow, orange and deep red) that grows and drifts towards the centre as it "comes at" the camera, throwing off flame particles that cool from yellow to red to smoke, then bursts into embers |
 
@@ -197,7 +200,8 @@ Uploaded video and image files appear centred on the pinch point.
 
 The built-in sounds are computed sample by sample in JavaScript when the app
 opens and saved as WAV files, so they play in a normal audio player in the
-Audio tab (`src/effects/sparkSound.js`, `src/effects/fireSound.js`).
+Audio tab (`src/effects/sparkSound.js`, `src/effects/fireSound.js`,
+`src/effects/lightSound.js`).
 
 When a spell casts, its sound is played through the Web Audio API
 (`src/effects/audioEngine.js`). Each sound is decoded once in advance and
@@ -208,8 +212,8 @@ element would decode the file again each time, which adds a noticeable delay.
 
 Animations and audio come from three places, and all appear in both modes:
 
-- **Made by code.** Coins, Illumination and Fireball are drawn live. Spark
-  chime and Fire-Crackle are computed when the app opens.
+- **Made by code.** Coins, Illumination and Fireball are drawn live.
+  Spark-Chime, Fire-Crackle and Light-Swell are computed when the app opens.
 - **Built-in files.** Files in `public/library/animations/` and
   `public/library/audio/`, each listed in that folder's `index.json` (see
   `public/library/README.md`).
@@ -307,6 +311,7 @@ Current results:
 | Push-Fireball, each example unseen | all 5 cast Push-Fireball only (0.25–0.76, limits 0.86–0.90) |
 | All 15, started from a different position (first third replaced by the middle pose) | all cast their own spell |
 | All 15, played backwards | none cast (1.04+ / 0.66+ / 1.10+) |
+| Light-Swell | 3.30 s, peak 0.8, ends in silence; holds while the light shines (loudness per 0.3 s 0.251 → 0.196 → 0.182 → 0.171 → 0.166 → 0.158 → 0.161), then fades (0.134 → 0.079 → 0.044 → 0.004) |
 | Spark-Chime | 1.80 s, peak 0.8, ends in silence; loudness per 0.3 s 0.239 → 0.208 → 0.118 → 0.055 → 0.022 → 0.004 |
 | Fire-Crackle | 2.00 s, peak 0.85, ends in silence; crackle peaks 6.9× the average level; loudest at 0.8–1.0 s (the burst), then dies away |
 

@@ -38,8 +38,8 @@ export function createCoins() {
     burst(x, y, count = BURST_COUNT, scale = 1) {
       for (let i = 0; i < count; i++) {
         const angle = random(0, Math.PI * 2)
-        const speed = random(600, 1000) * scale
-        const life = random(0.4, 0.6)
+        const speed = random(350, 600) * scale
+        const life = random(0.7, 1.0)
         particles.push({
           x,
           y,
@@ -47,7 +47,7 @@ export function createCoins() {
           vy: Math.sin(angle) * speed - speed * 0.3, // a slight upward bias
           size: random(40, 64) * scale,
           gravity: GRAVITY * scale,
-          spin: random(8, 16), // flips per second, drawn by squashing the coin sideways
+          spin: random(3, 6), // turning speed, drawn by squashing the coin sideways
           phase: random(0, Math.PI * 2),
           life,
           maxLife: life,
@@ -56,8 +56,8 @@ export function createCoins() {
     },
     update(dt) {
       for (const p of particles) {
-        p.vx *= Math.max(0, 1 - 2.5 * dt) // air drag
-        p.vy = p.vy * Math.max(0, 1 - 2.5 * dt) + p.gravity * dt
+        p.vx *= Math.max(0, 1 - 2 * dt) // air drag
+        p.vy = p.vy * Math.max(0, 1 - 2 * dt) + p.gravity * dt
         p.x += p.vx * dt
         p.y += p.vy * dt
         p.phase += p.spin * dt
