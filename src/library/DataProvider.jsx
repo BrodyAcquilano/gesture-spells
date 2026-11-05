@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getAll, remove } from '../storage/db.js'
-import { PROCEDURAL, loadBuiltInSpells, loadFileManifest } from './builtins.js'
+import { PROCEDURAL_SOUNDS, asLibraryItem, loadBuiltInSpells, loadLibraryIndex } from './builtins.js'
 import {
   createSpellFile,
-  deleteLibraryFile,
+  deleteLibraryEntry,
   deleteRecordingFiles,
   deleteSpellFile,
   listRecordings,
@@ -20,8 +20,9 @@ import { DataContext } from './DataContext.js'
 // Loads everything once when the app starts and keeps it in React state.
 // Changes are saved straight away, so they survive a reload:
 //   spells             files in public/library/spells/ (in the repository)
-//   uploaded files     files in public/library/animations/ and audio/ (in
-//                      the repository, so spells that use them work anywhere)
+//   animations, sounds entries in public/library/animations/ and audio/
+//                      index.json, with uploaded files beside them (in the
+//                      repository, so spells that use them work anywhere)
 //   recordings         files in recordings/ (local only, git-ignored)
 // They are written by the dev server (server/storage.js), because a page
 // can't write files itself. Without it (a static build) everything is
@@ -30,23 +31,15 @@ import { DataContext } from './DataContext.js'
 // Earlier versions kept spells and uploads in the browser's database
 // (IndexedDB); anything found there is moved into files once.
 //
-// The built-in sounds are made by code as Blobs in memory. To play one, the
+// Sounds made by code are rendered into Blobs in memory. To play one, the
 // page needs a URL, so each gets an "object URL" (blob:...), released when
 // the app closes.
 
 const KINDS = ['animations', 'audio']
 
-// Built-ins made by code are known before anything loads, so they show at once.
-function proceduralEntries(kind) {
-  // eslint-disable-next-line no-unused-vars
-  return PROCEDURAL[kind].map(({ render, ...entry }) => ({ ...entry, source: 'built-in' }))
-}
-
-const libraryBase = (kind) => `${import.meta.env.BASE_URL}library/${kind}/`
-const asLibraryItem = (kind, entry) => ({ ...entry, source: 'file', url: libraryBase(kind) + entry.file })
 
 export default function DataProvider({ children }) {
-  const [library, setLibrary] = useState({ animations: proceduralEntries('animations'), audio: proceduralEntries('audio') })
+  const [library, setLibrary] = useState({ animations: [], audio: [] })
   const [spells, setSpells] = useState([])
   const [spellsReadOnly, setSpellsReadOnly] = useState(false)
   const [recordings, setRecordings] = useState([])
@@ -71,43 +64,32 @@ export default function DataProvider({ children }) {
     let cancelled = false
     const urls = objectUrls.current
 
-    // Procedural audio is rendered to a WAV file in the background; its
-    // player fills in a moment after the app opens.
-    async function renderProcedural() {
-      for (const kind of KINDS) {
-        for (const { id, render } of PROCEDURAL[kind]) {
-          if (!render) continue
-          try {
-            const { blob } = await render()
-            if (cancelled) return
-            const url = makeUrl(blob)
-            setLibrary((current) => ({
-              ...current,
-              [kind]: current[kind].map((item) => (item.id === id ? { ...item, blob, size: blob.size, url } : item)),
-            }))
-          } catch (error) {
-            console.error(`Could not render ${id}`, error)
-          }
+    // Sounds made by code are rendered into WAV files in the background;
+    // their players fill in a moment after the app opens.
+    async function renderSounds(items) {
+      for (const { id, procedural } of items) {
+        const render = PROCEDURAL_SOUNDS[procedural]
+        if (!render) continue
+        try {
+          const { blob } = await render()
+          if (cancelled) return
+          const url = makeUrl(blob)
+          setLibrary((current) => ({
+            ...current,
+            audio: current.audio.map((item) => (item.id === id ? { ...item, blob, size: blob.size, url } : item)),
+          }))
+        } catch (error) {
+          console.error(`Could not render ${id}`, error)
         }
       }
     }
 
     async function load() {
-      const files = await Promise.all(KINDS.map(loadFileManifest))
+      const [animations, audio] = await Promise.all(KINDS.map(loadLibraryIndex))
       if (cancelled) return
-      const next = {}
-      KINDS.forEach((kind, i) => {
-        next[kind] = files[i].map((entry) => ({ ...entry, source: 'file' }))
-      })
-      // Keep the built-ins made by code as they are: their audio may already be rendered.
-      setLibrary((current) => {
-        const merged = {}
-        for (const kind of KINDS) {
-          merged[kind] = [...current[kind].filter((item) => item.procedural), ...next[kind]]
-        }
-        return merged
-      })
+      setLibrary({ animations, audio })
       setLoaded(true)
+      await renderSounds(audio.filter((item) => item.procedural))
       await moveOldUploads()
     }
 
@@ -121,7 +103,7 @@ export default function DataProvider({ children }) {
           const file = new File([record.blob], record.name, { type: record.type })
           const entry = await uploadLibraryFile(kind, file, record.id)
           if (record.description) {
-            await updateLibraryEntry(kind, entry.file, { description: record.description })
+            await updateLibraryEntry(kind, entry.id, { description: record.description })
             entry.description = record.description
           }
           await remove(kind, record.id)
@@ -160,7 +142,6 @@ export default function DataProvider({ children }) {
       if (!cancelled) setRecordings(list)
     }
 
-    renderProcedural()
     loadSpells().catch((error) => console.error('Could not load spells', error))
     loadRecordings()
     load().catch((error) => {
@@ -197,11 +178,12 @@ export default function DataProvider({ children }) {
       ...current,
       [kind]: current[kind].map((entry) => (entry.id === item.id ? next : entry)),
     }))
-    await updateLibraryEntry(kind, item.file, changes)
+    await updateLibraryEntry(kind, item.id, changes)
   }, [])
 
+  // Deletes an animation or sound: its entry, and its file if it has one.
   const removeFile = useCallback(async (kind, item) => {
-    await deleteLibraryFile(kind, item.file)
+    await deleteLibraryEntry(kind, item.id)
     setLibrary((current) => ({
       ...current,
       [kind]: current[kind].filter((entry) => entry.id !== item.id),

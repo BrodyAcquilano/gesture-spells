@@ -828,3 +828,76 @@ input[type='range'] {
   color: var(--green);
   font-weight: 600;
 }
+
+/* ---------- centre pop-up message ---------- */
+
+.toast-layer {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  z-index: 100;
+}
+.toast {
+  max-width: min(560px, 90vw);
+  padding: 18px 26px;
+  background: rgba(15, 15, 26, 0.96);
+  border: 1px solid var(--magenta);
+  border-radius: 8px;
+  box-shadow: var(--glow-magenta), 0 10px 40px rgba(0, 0, 0, 0.6);
+  text-align: center;
+  line-height: 1.5;
+  animation: toast-fade 4s ease forwards;
+}
+@keyframes toast-fade {
+  0% {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  10%,
+  80% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+/* ---------- confirm dialog ---------- */
+
+.dialog-layer {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(3, 3, 8, 0.6);
+  z-index: 110;
+  animation: dialog-fade 0.15s ease;
+}
+.dialog {
+  max-width: min(520px, 90vw);
+  padding: 22px 26px;
+  background: var(--panel);
+  border: 1px solid var(--red);
+  border-radius: 8px;
+  box-shadow: 0 0 18px rgba(255, 68, 102, 0.35), 0 10px 40px rgba(0, 0, 0, 0.6);
+  text-align: center;
+  line-height: 1.5;
+}
+.dialog p {
+  margin: 0 0 18px;
+}
+@keyframes dialog-fade {
+  from {
+    opacity: 0;
+  }
+}
+.delete-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
+  padding-top: 4px;
+}

@@ -36,7 +36,7 @@ either goes missing.
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | Serves the app at http://localhost:5173 |
-| `npm run check` | Checks the gesture maths, the spells and the built-in sounds without a camera (see "Checking the maths") |
+| `npm run check` | Checks the gesture maths, the spells and the sounds made by code, without a camera (see "Checking the maths") |
 | `npm run make-spells` | Regenerates the gesture examples of Snap-Brightness and Push-Fireball, keeping their edited details (see "The spells") |
 | `npm run build` | Builds the app into `dist/` |
 | `npm run lint` | Checks the code with ESLint |
@@ -51,8 +51,8 @@ The app comes with three spells ready to use, named *Gesture*-*Spell*:
 
 | Spell | Gesture | Animation | Sound |
 | --- | --- | --- | --- |
-| **Pinch-Coins** | Press thumb and index fingertip together | Coins 🪙: spinning gold coins burst from the pinch | Spark-Chime |
-| **Snap-Brightness** | Snap: middle finger off the thumb into the palm | Illumination: a point of light flares at the index fingertip and shines for about 3 s | Light-Swell |
+| **Pinch-Coins** | Press thumb and index fingertip together | Coins: spinning gold coins burst from the pinch | Spark-Chime |
+| **Snap-Brightness** | Snap: middle finger off the thumb into the palm | Brightness: a point of light flares at the index fingertip and shines for about 3 s | Light-Swell |
 | **Push-Fireball** | Fist, then fling the hand open and push it at the camera | Fireball: forms at the palm and rushes towards you | Fire-Crackle |
 
 1. **Spellbook → Spellbook tab.** Select a spell and press **Play**. It loops
@@ -89,6 +89,11 @@ and details.
 
 Anything not built yet shows a "Feature coming soon" box.
 
+Every delete (a spell, an animation, a sound, a recording, a gesture's
+examples, a cast in Finalize) asks first, in a **Confirm / Cancel** dialog
+in the centre of the screen. The Delete buttons are at the bottom of the
+details box.
+
 ## Modes and tabs
 
 ### Spellbook mode (live)
@@ -96,16 +101,23 @@ Anything not built yet shows a "Feature coming soon" box.
 Build spells first, then record video while the app recognises them.
 
 **Animations.** The animation library, shared with Editing mode.
-- List: every animation, built in or uploaded. The green + uploads files.
+- List: every animation, the ones that come with the app and the ones you
+  upload. The green + uploads files.
 - Viewer: plays the selected animation on a loop (silently: sound always
   comes from audio files).
-- Details: source, format, size and date, an editable description for
-  uploaded files, Delete, and an Upload button at the bottom. Uploaded files
-  are saved into `public/library/animations/` (see "Where things are saved").
-- Built in: **Coins 🪙**, **Illumination** and **Fireball**, all drawn by code.
+- Details: the name (editable, to rename it), source, format, size and date,
+  an editable description, **Delete** at the bottom, and an Upload button.
+  Uploaded files are saved into `public/library/animations/` (see "Where
+  things are saved").
+- Comes with: **Coins**, **Brightness** and **Fireball**, all drawn by code.
+  They can be renamed and deleted like any upload.
+- An animation a spell uses can't be deleted: a message in the centre of the
+  screen names the spells that use it. Choose another animation for those
+  spells first.
 
-**Audio.** The audio library, shared with Editing mode, laid out the same way.
-The viewer is an audio player. Built in:
+**Audio.** The audio library, shared with Editing mode, laid out the same way,
+with the same renaming, deleting and in-use protection. The viewer is an
+audio player. Comes with:
 - **Spark-Chime**: a bright strike, then a rippling bell chime with a
   shimmer and an echo, 1.8 s, fading out
 - **Light-Swell**: a glassy ping as the light flares, then a warm, bright
@@ -160,7 +172,7 @@ gesture, an animation and an audio file from the library.
 - List: your recordings.
 - Viewer: the recording plays mirrored, as it looked live, with each cast's
   animation at the hand and its sound, at the moment it was cast. Animations
-  that follow the hand (Illumination) follow the recorded hand. **Play /
+  that follow the hand (Brightness) follow the recorded hand. **Play /
   Pause**, a position slider and the time.
 - Details:
   - the recording's name (editable), date, length and format
@@ -233,20 +245,20 @@ The three that come with the app:
 
 ## How animations work
 
-Each built-in animation is drawn by code on a canvas, every frame
+Each animation that comes with the app is drawn by code on a canvas, every frame
 (`src/effects/`). Each one appears at its own place on the hand:
 
 | Animation | Appears at | How it is drawn |
 | --- | --- | --- |
-| Coins 🪙 | between thumb and index tip | Ten coins thrown out with air drag and gravity, slowly spinning (drawn squashed sideways as they turn), fading out over about a second. The glowing coin is drawn once into a small image and stamped, which is far faster than drawing emoji text with a glow every frame |
-| Illumination | the index fingertip, following it as it moves | A flash ring, a large warm halo, a white-hot core, two crossing light streaks and drifting specks, added together with additive blending so overlapping light goes towards white. Full brightness for about 2 s, then it fades out by about 3 s |
+| Coins | between thumb and index tip | Ten coins thrown out with air drag and gravity, slowly spinning (drawn squashed sideways as they turn), fading out over about a second. The glowing coin is drawn once into a small image and stamped, which is far faster than drawing emoji text with a glow every frame |
+| Brightness | the index fingertip, following it as it moves | A flash ring, a large warm halo, a white-hot core, two crossing light streaks and drifting specks, added together with additive blending so overlapping light goes towards white. Full brightness for about 2 s, then it fades out by about 3 s |
 | Fireball | the palm | A ball (white-hot to yellow, orange and deep red) that grows and drifts towards the centre as it "comes at" the camera, throwing off flame particles that cool from yellow to red to smoke, then bursts into embers |
 
 Uploaded video and image files appear centred on the pinch point.
 
 ## How sound plays
 
-The built-in sounds are computed sample by sample in JavaScript when the app
+The sounds that come with the app are computed sample by sample in JavaScript when the app
 opens and saved as WAV files, so they play in a normal audio player in the
 Audio tab (`src/effects/sparkSound.js`, `src/effects/fireSound.js`,
 `src/effects/lightSound.js`).
@@ -258,15 +270,18 @@ element would decode the file again each time, which adds a noticeable delay.
 
 ## The library
 
-Animations and audio come from three places, and all appear in both modes:
+Every animation and sound is an entry in `public/library/animations/index.json`
+or `public/library/audio/index.json`, so renaming, describing and deleting
+them is saved into the project. They come from:
 
-- **Made by code.** Coins, Illumination and Fireball are drawn live.
-  Spark-Chime, Fire-Crackle and Light-Swell are computed when the app opens.
-- **Built-in files.** Files in `public/library/animations/` and
-  `public/library/audio/`, each listed in that folder's `index.json` (see
-  `public/library/README.md`).
+- **Made by code.** Coins, Brightness and Fireball are drawn live.
+  Spark-Chime, Light-Swell and Fire-Crackle are computed when the app opens.
+  Their entries have a `procedural` name instead of a file. A deleted one
+  can be brought back by restoring its entry from git.
+- **Files.** Files in `public/library/animations/` and `public/library/audio/`
+  (see `public/library/README.md`).
 - **Uploaded.** Files you add with the green + or the upload button. They
-  are saved into the same folders as the built-in files and listed in their
+  are saved into the library folders and listed in their
   `index.json`, with a tidied file name (`My Sound (1).WAV` becomes
   `my-sound-1.wav`), so they are part of the repository too.
 
@@ -349,7 +364,7 @@ elsewhere in the project (`.webm`, `.mp4`, `.mov`, `.mkv`), except in
 - every spell against the others: each example is played
   as a live stream to a recogniser that has all three spells but not that
   example, so it has never seen it
-- the built-in sounds.
+- the sounds made by code.
 
 Current results:
 
@@ -400,13 +415,13 @@ src/
                        spells in a recorded track
   effects/             coins, illumination, fireball, the sounds, WAV encoder,
                        audio engine, effect player
-  library/             shared data (library files, spells), accepted formats, built-ins
+  library/             shared data (library, spells), accepted formats, loading
   record/              video recording (MediaRecorder, MP4 or WebM)
   storage/             projectApi.js talks to the dev server; db.js reads the
                        old browser database once, to move it into files
 server/storage.js      dev-server routes that save spells, uploads, recordings,
                        exports
-public/library/        animation and audio files (built-in and uploaded), and
+public/library/        the animation and sound entries and uploaded files, and
                        the spells
 recordings/, exports/  your videos (git-ignored)
 scripts/               MediaPipe setup, maths checks, spell generator

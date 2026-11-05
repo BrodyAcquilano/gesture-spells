@@ -57,5 +57,12 @@ export function uploadLibraryFile(kind, file, id) {
   const query = new URLSearchParams({ name: file.name, ...(id && { id }) })
   return request('POST', `library/${kind}?${query}`, file, { 'Content-Type': file.type || 'application/octet-stream' })
 }
-export const updateLibraryEntry = (kind, file, changes) => request('PUT', `library/${kind}/${file}`, ...json(changes))
-export const deleteLibraryFile = (kind, file) => request('DELETE', `library/${kind}/${file}`)
+// Entries are found by id (sounds and animations made by code have no file).
+export function updateLibraryEntry(kind, id, changes) {
+  const key = `library/${kind}/${id}`
+  const previous = queues.get(key) ?? Promise.resolve()
+  const next = previous.catch(() => {}).then(() => request('PUT', `library/${kind}/${encodeURIComponent(id)}`, ...json(changes)))
+  queues.set(key, next)
+  return next
+}
+export const deleteLibraryEntry = (kind, id) => request('DELETE', `library/${kind}/${encodeURIComponent(id)}`)

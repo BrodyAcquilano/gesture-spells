@@ -37,6 +37,7 @@ React 19, Vite, react-router-dom, plain JavaScript (no TypeScript). Hand trackin
 - Sound on cast goes through `src/effects/audioEngine.js` (Web Audio, decoded once, preloaded) for low latency, not `<audio>` elements.
 - Animations and audio are separate library items, joined only in a spell. Animations are silent. Audio built-ins are rendered to WAV files so they play in a normal audio player.
 - Use `ComingSoon` for any box whose feature isn't built yet.
+- Every library item (including the ones made by code: Coins, Brightness, Fireball; Spark-Chime, Light-Swell, Fire-Crackle) is an entry in `public/library/<kind>/index.json` (`procedural` name or `file`), renameable and deletable; the server finds entries by id. Never label them "built-in". Deleting an item a spell uses is blocked with a centre pop-up (`useToast`). Every delete asks through the centre Confirm/Cancel dialog (`useConfirm` in `src/components/toast.js`), never `window.confirm`; Delete buttons sit at the bottom of the details box.
 - Theme: cyberpunk (dark, neon cyan and magenta, green for add buttons).
 
 ## Working with the owner

@@ -6,6 +6,7 @@ import ListPanel from '../components/ListPanel.jsx'
 import FileSelect from '../components/FileSelect.jsx'
 import GestureRecorder, { SUGGESTED_EXAMPLES } from '../components/GestureRecorder.jsx'
 import SpellPlayback from '../components/SpellPlayback.jsx'
+import { useConfirm } from '../components/toast.js'
 
 // The spellbook: each spell has a recorded gesture, and an animation and an
 // audio file chosen from the shared library. Any of the three can be missing.
@@ -14,6 +15,7 @@ import SpellPlayback from '../components/SpellPlayback.jsx'
 // repository with the next push.
 export default function SpellsTab() {
   const { spells, spellsReadOnly, library, findFile, createSpell, updateSpell, removeSpell } = useData()
+  const confirm = useConfirm()
   const [selectedId, setSelectedId] = useState(null)
   const [recording, setRecording] = useState(false)
   const selected = spells.find((spell) => spell.id === selectedId) ?? spells[0]
@@ -31,7 +33,7 @@ export default function SpellsTab() {
   }
 
   async function handleDelete() {
-    if (!window.confirm(`Delete the spell "${selected.name}"?`)) return
+    if (!(await confirm(`Delete the spell "${selected.name}"? Its file is removed from public/library/spells/.`))) return
     await removeSpell(selected.id)
     select(null)
   }
@@ -42,8 +44,8 @@ export default function SpellsTab() {
     }))
   }
 
-  function clearGesture() {
-    if (!window.confirm('Delete every recorded example of this gesture?')) return
+  async function clearGesture() {
+    if (!(await confirm(`Delete all ${selected.gesture.examples.length} recorded examples of this gesture?`))) return
     updateSpell(selected.id, { gesture: null })
   }
 
@@ -91,9 +93,6 @@ export default function SpellsTab() {
                 <div className="button-row">
                   <button className="neon-button small" onClick={() => handleNew(selected)}>
                     Make a copy
-                  </button>
-                  <button className="neon-button small danger" onClick={handleDelete}>
-                    Delete spell
                   </button>
                 </div>
               )}
@@ -171,6 +170,13 @@ export default function SpellsTab() {
                 {locked && <p className="muted small">Spells are read-only here: start the app with npm run dev to edit and save them.</p>}
               </label>
             </div>
+            {!locked && (
+              <div className="delete-row">
+                <button className="neon-button small danger" onClick={handleDelete}>
+                  Delete spell
+                </button>
+              </div>
+            )}
           </div>
         )
       }

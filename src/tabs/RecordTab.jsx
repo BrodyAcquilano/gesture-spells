@@ -5,6 +5,7 @@ import { formatDate } from '../library/formats.js'
 import Workspace from '../components/Workspace.jsx'
 import ListPanel from '../components/ListPanel.jsx'
 import LiveCaster from '../components/LiveCaster.jsx'
+import { useConfirm } from '../components/toast.js'
 
 // Recording video. In Spellbook mode the camera recognises the spellbook's
 // gestures live and shows their effects. In Editing mode it records plain
@@ -13,11 +14,12 @@ import LiveCaster from '../components/LiveCaster.jsx'
 export default function RecordTab({ live }) {
   const { recordings, deleteRecording } = useData()
   const navigate = useNavigate()
+  const confirm = useConfirm()
   const [selectedId, setSelectedId] = useState(null)
   const selected = recordings.find((r) => r.id === selectedId)
 
   async function handleDelete() {
-    if (!window.confirm(`Delete "${selected.name}"? The video file is removed from recordings/.`)) return
+    if (!(await confirm(`Delete "${selected.name}"? Its video is removed from recordings/.`))) return
     await deleteRecording(selected.id)
     setSelectedId(null)
   }
@@ -44,9 +46,6 @@ export default function RecordTab({ live }) {
                   <button className="neon-button small" onClick={() => navigate(`/spellbook/finalize?id=${selected.id}`)}>
                     Open in Finalize
                   </button>
-                  <button className="neon-button small danger" onClick={handleDelete}>
-                    Delete
-                  </button>
                 </div>
               </div>
               <dl className="facts">
@@ -61,6 +60,11 @@ export default function RecordTab({ live }) {
                   recordings/{selected.id}/ <span className="muted small">(not uploaded to GitHub)</span>
                 </dd>
               </dl>
+              <div className="delete-row">
+                <button className="neon-button small danger" onClick={handleDelete}>
+                  Delete recording
+                </button>
+              </div>
             </>
           ) : (
             <>

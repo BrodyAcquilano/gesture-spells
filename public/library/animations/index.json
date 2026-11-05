@@ -1,1 +1,20 @@
-[]
+[
+  {
+    "id": "builtin:coins",
+    "name": "Coins",
+    "procedural": "coins",
+    "description": "A burst of spinning 🪙 gold coins that fly out from the pinch, turning slowly, and fade over about a second. Drawn by code (src/effects/coins.js)."
+  },
+  {
+    "id": "builtin:illumination",
+    "name": "Brightness",
+    "procedural": "illumination",
+    "description": "A large point of warm white light that flares at the index fingertip with a flash ring and crossing light streaks, shines for about 2 s and fades out by about 3 s, following the finger as it moves. Drawn by code (src/effects/illumination.js)."
+  },
+  {
+    "id": "builtin:fireball",
+    "name": "Fireball",
+    "procedural": "fireball",
+    "description": "A ball of fire forms at the palm and rushes towards the camera, growing as it comes, then bursts into flames and embers (about 2 s). Red, orange and yellow light drawn by code (src/effects/fireball.js)."
+  }
+]

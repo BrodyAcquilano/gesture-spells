@@ -1,22 +1,27 @@
 import { useRef, useState } from 'react'
 import { useData } from '../library/DataContext.js'
 import { LIBRARY_KINDS, acceptAttribute, extensionOf, formatBytes, formatDate } from '../library/formats.js'
+import { useConfirm, useToast } from '../components/toast.js'
 import Workspace from '../components/Workspace.jsx'
 import ListPanel from '../components/ListPanel.jsx'
 import MediaPreview from '../components/MediaPreview.jsx'
 
 // The Animations tab and the Audio tab (kind = 'animations' | 'audio').
-// Uploaded files are saved into public/library/<kind>/ (part of the
-// repository). Both modes show the same library, so a file uploaded in one mode is
-// available in the other.
+// Every item, whether uploaded or made by code, can be renamed, described and
+// deleted; the changes are saved into public/library/<kind>/index.json (part
+// of the repository). An item a spell uses can't be deleted: a message says
+// which spells use it. Both modes show the same library.
 export default function LibraryTab({ kind }) {
-  const { library, addFiles, updateFile, removeFile, loadError } = useData()
+  const { library, spells, addFiles, updateFile, removeFile, loadError, spellsReadOnly } = useData()
+  const showMessage = useToast()
+  const confirm = useConfirm()
   const info = LIBRARY_KINDS[kind]
   const items = library[kind]
   const [selectedId, setSelectedId] = useState(null)
   const [message, setMessage] = useState('')
   const inputRef = useRef(null)
   const selected = items.find((item) => item.id === selectedId) ?? items[0]
+  const editable = !spellsReadOnly
 
   async function handleFiles(event) {
     const files = [...event.target.files]
@@ -32,26 +37,40 @@ export default function LibraryTab({ kind }) {
   }
 
   async function handleDelete() {
-    if (!window.confirm(`Delete "${selected.name}" from the library?`)) return
-    await removeFile(kind, selected)
-    setSelectedId(null)
+    const field = kind === 'animations' ? 'animationId' : 'audioId'
+    const users = spells.filter((spell) => spell[field] === selected.id)
+    if (users.length) {
+      const names = users.map((spell) => `"${spell.name}"`).join(', ')
+      showMessage(
+        `This ${info.singular} is in use by ${users.length === 1 ? 'a spell' : 'spells'} in the spellbook: ${names}. Choose a different ${info.singular} for ${users.length === 1 ? 'it' : 'them'} first, then delete it.`,
+      )
+      return
+    }
+    const what = selected.file ? ` Its file public/library/${kind}/${selected.file} is deleted too.` : ''
+    if (!(await confirm(`Delete "${selected.name}" from the library?${what}`))) return
+    try {
+      await removeFile(kind, selected)
+      setSelectedId(null)
+    } catch (error) {
+      setMessage(`Could not delete: ${error.message}`)
+    }
   }
 
   const upload = () => inputRef.current.click()
+
+  let format = '—'
+  if (selected?.procedural) format = kind === 'audio' ? 'WAV, made by code' : 'Drawn by code'
+  else if (selected?.file) format = extensionOf(selected.file).toUpperCase()
 
   return (
     <Workspace
       list={
         <ListPanel
           title={info.title}
-          items={items.map((item) => ({
-            id: item.id,
-            name: item.name,
-            meta: item.source === 'built-in' ? 'built-in' : formatBytes(item.size),
-          }))}
+          items={items.map((item) => ({ id: item.id, name: item.name, meta: formatBytes(item.size) === '—' ? '' : formatBytes(item.size) }))}
           selectedId={selected?.id}
           onSelect={setSelectedId}
-          onAdd={upload}
+          onAdd={editable ? upload : null}
           addLabel={`Upload ${info.singular}`}
           empty={`No ${kind} yet. Use the + button to upload one.`}
         />
@@ -70,18 +89,22 @@ export default function LibraryTab({ kind }) {
           {selected ? (
             <>
               <div className="details-head">
-                <h2>{selected.name}</h2>
-                {selected.source === 'file' && (
-                  <button className="neon-button small danger" onClick={handleDelete}>
-                    Delete
-                  </button>
+                {editable ? (
+                  <input
+                    className="title-input"
+                    value={selected.name}
+                    onChange={(event) => updateFile(kind, selected, { name: event.target.value })}
+                    aria-label={`${info.singular} name`}
+                  />
+                ) : (
+                  <h2>{selected.name}</h2>
                 )}
               </div>
               <dl className="facts">
                 <dt>Source</dt>
-                <dd>{selected.source === 'built-in' ? 'Built-in (made by code)' : `File: public/library/${kind}/${selected.file}`}</dd>
+                <dd>{selected.procedural ? 'Made by code (src/effects/)' : `File: public/library/${kind}/${selected.file}`}</dd>
                 <dt>Format</dt>
-                <dd>{selected.procedural ? (selected.blob ? 'WAV, generated by code' : 'Drawn by code') :extensionOf(selected.name || selected.file).toUpperCase()}</dd>
+                <dd>{format}</dd>
                 <dt>Size</dt>
                 <dd>{formatBytes(selected.size)}</dd>
                 <dt>Added</dt>
@@ -89,9 +112,9 @@ export default function LibraryTab({ kind }) {
               </dl>
               <label className="field">
                 <span>Description</span>
-                {selected.source === 'file' ? (
+                {editable ? (
                   <textarea
-                    value={selected.description}
+                    value={selected.description ?? ''}
                     onChange={(event) => updateFile(kind, selected, { description: event.target.value })}
                     placeholder="What it looks or sounds like, where it came from…"
                   />
@@ -99,16 +122,25 @@ export default function LibraryTab({ kind }) {
                   <p className="muted">{selected.description}</p>
                 )}
               </label>
+              {editable && (
+                <div className="delete-row">
+                  <button className="neon-button small danger" onClick={handleDelete}>
+                    Delete {info.singular}
+                  </button>
+                </div>
+              )}
             </>
           ) : (
             <p className="muted">Upload a file to start the library.</p>
           )}
-          <div className="upload-row">
-            <button className="neon-button" onClick={upload}>
-              Upload {info.singular}
-            </button>
-            <span className="muted small">{info.describe}</span>
-          </div>
+          {editable && (
+            <div className="upload-row">
+              <button className="neon-button" onClick={upload}>
+                Upload {info.singular}
+              </button>
+              <span className="muted small">{info.describe}</span>
+            </div>
+          )}
           {message && <p className="error">{message}</p>}
         </div>
       }

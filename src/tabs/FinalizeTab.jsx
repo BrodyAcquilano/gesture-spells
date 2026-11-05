@@ -7,12 +7,14 @@ import { detectCasts } from '../gestures/detect.js'
 import Workspace from '../components/Workspace.jsx'
 import ListPanel from '../components/ListPanel.jsx'
 import FinalizePlayer from '../components/FinalizePlayer.jsx'
+import { useConfirm } from '../components/toast.js'
 
 // Finalize: pick a recording, see and hear it with the spells added at the
 // moments they were cast, adjust which casts to keep, and export the
 // finished video.
 export default function FinalizeTab() {
   const { recordings, spells, findFile, updateRecording } = useData()
+  const confirm = useConfirm()
   const [params, setParams] = useSearchParams()
   const selected = recordings.find((r) => r.id === params.get('id')) ?? recordings[recordings.length - 1]
   const [tracks, setTracks] = useState({}) // id -> track
@@ -52,12 +54,16 @@ export default function FinalizeTab() {
     setExported(null)
   }
 
-  function removeCast(index) {
+  async function removeCast(index) {
+    const cast = selected.casts[index]
+    const name = resolveCast(cast).spell?.name ?? 'this spell'
+    if (!(await confirm(`Remove the cast of ${name} at ${cast.t.toFixed(1)} s from this recording?`, { confirmLabel: 'Remove' }))) return
     updateRecording(selected.id, { casts: selected.casts.filter((_, i) => i !== index) })
   }
 
-  function detectAgain() {
+  async function detectAgain() {
     if (!track?.length) return
+    if (selected.casts.length && !(await confirm('Detect spells again? The current list of casts is replaced.', { confirmLabel: 'Detect again' }))) return
     const casts = detectCasts(track, spells, (selected.width || 16) / (selected.height || 9))
     updateRecording(selected.id, { casts })
   }

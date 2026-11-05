@@ -1,10 +1,13 @@
-# Built-in library
+# Library
 
-Default animations and sounds that ship with the app. They show up in the
-Animations and Audio tabs of both modes, next to any files uploaded in the
-browser.
+Every animation and sound the app offers, in both modes. Each is an entry in
+`animations/index.json` or `audio/index.json`. An entry either names a
+`file` in the same folder (an upload) or a `procedural` effect made by code
+in `src/effects/` (Coins, Brightness, Fireball; Spark-Chime, Light-Swell,
+Fire-Crackle). The app's Animations and Audio tabs upload, rename, describe
+and delete them through the dev server.
 
-To add one, put the file in `animations/` or `audio/` and add an entry to that
+To add one by hand, put the file in `animations/` or `audio/` and add an entry to that
 folder's `index.json`:
 
 ```json

@@ -1,1 +1,20 @@
-[]
+[
+  {
+    "id": "builtin:spark-chime",
+    "name": "Spark-Chime",
+    "procedural": "spark-chime",
+    "description": "A bright strike, then a rippling bell chime with a sparkly shimmer and an echo, about 1.8 s, fading out. Computed sample by sample in JavaScript (src/effects/sparkSound.js)."
+  },
+  {
+    "id": "builtin:light-swell",
+    "name": "Light-Swell",
+    "procedural": "light-swell",
+    "description": "A glassy ping as the light flares, then a warm, bright chord that swells and holds while it shines, with an airy shimmer and twinkles, fading out (3.3 s). Computed sample by sample in JavaScript (src/effects/lightSound.js)."
+  },
+  {
+    "id": "builtin:fire-crackle",
+    "name": "Fire-Crackle",
+    "procedural": "fire-crackle",
+    "description": "A rushing whoosh and roar with crackles and pops, building for 0.9 s like the fireball, then dying away (2 s). Computed sample by sample in JavaScript (src/effects/fireSound.js)."
+  }
+]

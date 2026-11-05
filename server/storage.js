@@ -26,13 +26,15 @@
 // Exports: finished videos from the Finalize tab, in exports/ (git-ignored).
 //   PUT    /api/exports/<name>.mp4|.webm    save a finished video → { path }
 //
-// Library files: uploaded animations and sounds, saved into
-// public/library/animations/ and public/library/audio/ and listed in that
-// folder's index.json. They are part of the repository, so spells that use
-// them work wherever the project is cloned. (<kind> is animations or audio.)
+// Library: every animation and sound is an entry in
+// public/library/animations/index.json or public/library/audio/index.json.
+// Uploaded ones are files in the same folder; the ones made by code (coins,
+// fireball, the built-in sounds…) have a `procedural` name instead of a file.
+// All of it is part of the repository, so spells that use them work wherever
+// the project is cloned. (<kind> is animations or audio.)
 //   POST   /api/library/<kind>?name=&id=    save an uploaded file (raw bytes) → its index entry
-//   PUT    /api/library/<kind>/<file>       change its entry (name, description)
-//   DELETE /api/library/<kind>/<file>       delete the file and its entry
+//   PUT    /api/library/<kind>/<id>         change an entry (name, description)
+//   DELETE /api/library/<kind>/<id>         delete an entry (and its file, if it has one)
 import { createReadStream, createWriteStream } from 'node:fs'
 import { mkdir, readFile, readdir, rm, stat, unlink, writeFile } from 'node:fs/promises'
 import { pipeline } from 'node:stream/promises'
@@ -230,10 +232,11 @@ async function addLibraryFile(request, kind, original, id) {
   return entry
 }
 
-async function updateLibraryFile(kind, file, changes) {
+// Entries are found by id: animations and sounds made by code have no file.
+async function updateLibraryEntry(kind, id, changes) {
   const entries = await readLibraryIndex(kind)
-  const at = entries.findIndex((e) => e.file === file)
-  if (at === -1) throw Object.assign(new Error('No such file'), { status: 404 })
+  const at = entries.findIndex((e) => e.id === id)
+  if (at === -1) throw Object.assign(new Error('No such item'), { status: 404 })
   const allowed = {}
   if (typeof changes.name === 'string') allowed.name = changes.name
   if (typeof changes.description === 'string') allowed.description = changes.description
@@ -241,10 +244,15 @@ async function updateLibraryFile(kind, file, changes) {
   await writeLibraryIndex(kind, entries)
 }
 
-async function deleteLibraryFile(kind, file) {
+// Removes the entry, and its file if it has one (made-by-code items don't).
+async function deleteLibraryEntry(kind, id) {
   const entries = await readLibraryIndex(kind)
-  await writeLibraryIndex(kind, entries.filter((e) => e.file !== file))
-  await unlink(new URL(file, libraryFolder(kind))).catch(() => {})
+  const entry = entries.find((e) => e.id === id)
+  if (!entry) return
+  await writeLibraryIndex(kind, entries.filter((e) => e !== entry))
+  if (entry.file && LIBRARY_FILE.test(entry.file) && entry.file !== 'index.json') {
+    await unlink(new URL(entry.file, libraryFolder(kind))).catch(() => {})
+  }
 }
 
 // ---------- routing ----------
@@ -289,15 +297,16 @@ async function handle(request, response) {
       if (part === 'track' && method === 'GET') return send(response, 200, await readJson(new URL('track.json', folder), []))
     }
     if (parts[0] === 'library') {
-      const [, kind, file] = parts
+      const [, kind, rawId] = parts
       if (!LIBRARY_EXTENSIONS[kind]) return send(response, 400, { error: 'Bad library kind' })
-      if (!file && method === 'POST') {
+      if (!rawId && method === 'POST') {
         const name = url.searchParams.get('name') ?? ''
         return send(response, 201, await addLibraryFile(request, kind, name, url.searchParams.get('id')))
       }
-      if (!file || !LIBRARY_FILE.test(file) || file === 'index.json') return send(response, 400, { error: 'Bad file name' })
-      if (method === 'PUT') return send(response, 204, await updateLibraryFile(kind, file, await bodyJson(request)))
-      if (method === 'DELETE') return send(response, 204, await deleteLibraryFile(kind, file))
+      const id = rawId ? decodeURIComponent(rawId) : ''
+      if (!LIBRARY_ID.test(id)) return send(response, 400, { error: 'Bad item id' })
+      if (method === 'PUT') return send(response, 204, await updateLibraryEntry(kind, id, await bodyJson(request)))
+      if (method === 'DELETE') return send(response, 204, await deleteLibraryEntry(kind, id))
     }
     if (parts[0] === 'exports' && method === 'PUT') {
       const name = parts[1]
