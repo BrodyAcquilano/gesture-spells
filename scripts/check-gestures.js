@@ -2,7 +2,8 @@
 //   - DTW on hand-worked tiny cases
 //   - on a synthetic hand: recording a pinch is trimmed to the movement, and
 //     a still hand, a drifting hand, a wave, a fist and a half pinch never cast
-//   - the spells' examples, replayed live and unseen: no wrong spell,
+//   - the spells' examples, replayed live and unseen: no wrong spell, the
+//     same with the other hand or a misread left/right label,
 //     nothing cast when played backwards, and at least 80% cast
 //   - the spark chime, fire crackle, light swell and clock tick: length, level, fade to silence
 // Run with `npm run check`.
@@ -216,6 +217,20 @@ for (const spellUnderTest of builtIns) {
     const changedStart = example.frames.map((frame, i) => (i < example.frames.length / 3 ? { ...middle, t: frame.t } : frame))
     const fromMiddle = runWith(rec, stream(changedStart), example.aspect)
     if (fromMiddle.casts.includes(spellUnderTest.id)) otherStart.push(k + 1)
+    // The same gesture done with the other hand, and with the tracker's
+    // left/right label misread (it often is, with the back of the hand to the
+    // camera), and mirrored with the label unchanged (a mirrored webcam): each
+    // must still cast this spell.
+    const swap = (label) => (label === 'Left' ? 'Right' : 'Left')
+    const variants = {
+      'other hand': example.frames.map((frame) => ({ ...frame, label: swap(frame.label), points: frame.points.map(([x, y, z]) => [1 - x, y, z]) })),
+      'label misread': example.frames.map((frame) => ({ ...frame, label: swap(frame.label) })),
+      'mirrored, same label': example.frames.map((frame) => ({ ...frame, points: frame.points.map(([x, y, z]) => [1 - x, y, z]) })),
+    }
+    for (const [name, frames] of Object.entries(variants)) {
+      const result = runWith(rec, stream(frames), example.aspect)
+      check(`${label} as ${name} casts its spell`, result.casts.includes(spellUnderTest.id) && result.casts.every((id) => id === spellUnderTest.id), result.casts.join(', ') || 'no cast')
+    }
   })
   const own = buildRecognizer(builtIns).entries.find((entry) => entry.spell.id === spellUnderTest.id)
   console.log(

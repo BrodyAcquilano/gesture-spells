@@ -156,16 +156,18 @@ export function buildRecognizer(spells, overrides = {}) {
   // match: same | null }.
   function classifySegment(frames, aspect) {
     if (frames.length < 2 || !entries.length) return { best: null, match: null }
-    const live = vectorsOf(frames, aspect, settings)
+    const views = bothHands(frames, aspect)
     // Two distances per spell: `strict` needs the live movement to last at
     // least minSpan of the example (an honest match); `loose` doesn't, so it
     // shows anything the movement even vaguely resembles.
     const scored = entries.map((entry) => {
       let strict = Infinity
       let loose = Infinity
-      for (const example of entry.examples) {
-        strict = Math.min(strict, matchScore(example, live, settings.endWeight, settings.minSpan))
-        loose = Math.min(loose, matchScore(example, live, settings.endWeight, 0))
+      for (const live of views) {
+        for (const example of entry.examples) {
+          strict = Math.min(strict, matchScore(example, live, settings.endWeight, settings.minSpan))
+          loose = Math.min(loose, matchScore(example, live, settings.endWeight, 0))
+        }
       }
       return { entry, strict, loose }
     })
@@ -180,10 +182,26 @@ export function buildRecognizer(spells, overrides = {}) {
     return { best, match: winner.strict < best.threshold && clear ? best : null }
   }
 
+  // The live stretch read as a right hand and as a left hand, the same label
+  // for every frame. The tracker's left/right label decides whether a hand is
+  // mirrored before comparing, and it is unreliable: it can flicker from
+  // frame to frame and is often wrong when the back of the hand faces the
+  // camera with fingers curled. So both readings are compared, and the
+  // closer one counts. Either hand then works whatever the label says.
+  function bothHands(frames, aspect) {
+    return ['Right', 'Left'].map((label) =>
+      vectorsOf(
+        frames.map((frame) => ({ ...frame, label })),
+        aspect,
+        settings,
+      ),
+    )
+  }
+
   // The distance from a live stretch to each spell's nearest example (for tests).
   function allDistances(frames, aspect) {
-    const live = vectorsOf(frames, aspect, settings)
-    return entries.map((entry) => Math.min(...entry.examples.map((example) => matchScore(example, live, settings.endWeight, settings.minSpan))))
+    const views = bothHands(frames, aspect)
+    return entries.map((entry) => Math.min(...views.flatMap((live) => entry.examples.map((example) => matchScore(example, live, settings.endWeight, settings.minSpan)))))
   }
 
   return { entries, settings, classifySegment, allDistances }

@@ -252,11 +252,37 @@ function record(gesture, { hand, view, size, tilt, turn, x, y }) {
   return frames
 }
 
+// Moves a whole recording so the hand stays inside the picture all through
+// it (a real camera can't track fingertips outside it), with a small margin.
+function inFrame(frames) {
+  const MARGIN = 0.03
+  let [left, right, top, bottom] = [Infinity, -Infinity, Infinity, -Infinity]
+  for (const frame of frames) {
+    for (const [x, y] of frame.points) {
+      left = Math.min(left, x)
+      right = Math.max(right, x)
+      top = Math.min(top, y)
+      bottom = Math.max(bottom, y)
+    }
+  }
+  // Too big to fit (very close and pushed at the camera): shrink about its centre.
+  const fit = Math.min(1, (1 - 2 * MARGIN) / (right - left), (1 - 2 * MARGIN) / (bottom - top))
+  const cx = (left + right) / 2
+  const cy = (top + bottom) / 2
+  const sx = (x) => cx + (x - cx) * fit
+  const sy = (y) => cy + (y - cy) * fit
+  const shift = (low, high) => (low < MARGIN ? MARGIN - low : high > 1 - MARGIN ? 1 - MARGIN - high : 0)
+  const dx = shift(sx(left), sx(right))
+  const dy = shift(sy(top), sy(bottom))
+  const round = (v) => Math.round(v * 10000) / 10000
+  return frames.map((frame) => ({ ...frame, points: frame.points.map(([x, y, z]) => [round(sx(x) + dx), round(sy(y) + dy), z]) }))
+}
+
 function example(makeGesture, options, index) {
   pickHand(between(0.88, 1.1), between(0.9, 1.1))
   bendOffset = { index: between(-0.06, 0.06), middle: between(-0.08, 0.08), ring: between(-0.12, 0.12), pinky: between(-0.12, 0.12) }
   const gesture = makeGesture()
-  const result = trimRecording(record(gesture, options), ASPECT, 0)
+  const result = trimRecording(inFrame(record(gesture, options)), ASPECT, 0)
   if (result.error) throw new Error(result.error)
   return { ...result.example, recordedAt: MADE_AT + index * 60000 }
 }
@@ -272,11 +298,14 @@ function placement(i, view = 'palm') {
     hand,
     view,
     size,
-    tilt: between(-25, 25),
+    tilt: between(-35, 35),
     turn: between(0, 45),
     // A right hand appears on the left of the (unmirrored) picture.
     x: hand === 'Right' ? between(0.25, 0.45) : between(0.55, 0.75),
-    y: between(0.7, 0.9) - size * 0.4,
+    // The wrist low enough that the fingertips (about 2.2 palm lengths above
+    // it, more for a hand pushed towards the camera) stay inside the picture,
+    // as a real camera needs to track them.
+    y: Math.min(0.95, between(0.08 + 2.4 * size, 0.97)),
   }
 }
 
