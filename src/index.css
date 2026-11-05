@@ -746,3 +746,18 @@ input[type='range'] {
   min-width: 120px;
   font-size: 1rem;
 }
+.playback-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.playback-label {
+  padding: 4px 10px;
+  background: rgba(7, 7, 13, 0.75);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: nowrap;
+}

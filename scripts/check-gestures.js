@@ -1,8 +1,12 @@
-// Checks the gesture maths on synthetic hands, without a camera:
+// Checks the gesture maths and the built-in sounds, without a camera:
 //   - DTW on hand-worked tiny cases
-//   - recording a pinch is trimmed to the movement
-//   - a live pinch is recognised, once, close to when it closes
-//   - a still hand, a drifting hand, a wave and a fist are not
+//   - on a synthetic hand: recording a pinch is trimmed to the movement, a
+//     live pinch is recognised once when it closes (also from another
+//     starting position), and a still hand, a drifting hand, a wave, a fist
+//     and a half pinch are not
+//   - the three built-in spells: each recorded example, unseen, casts its own
+//     spell and no other; reversed it casts nothing
+//   - the spark chime and fire crackle: length, level, fade to silence
 // Run with `npm run check`.
 import { dtw } from '../src/gestures/dtw.js'
 import { buildRecognizer } from '../src/gestures/recognizer.js'
@@ -103,7 +107,7 @@ console.log(`      threshold from the examples: ${entry.threshold.toFixed(3)}`)
 // ---------- live streams ----------
 // Feeds a stream frame by frame, classifying every second frame like the app
 // (with a 1 s cooldown after a cast), and reports casts and closest distances.
-function runLive(frames) {
+function runLive(frames, rec = recognizer) {
   const history = []
   const casts = []
   let closest = Infinity
@@ -112,7 +116,7 @@ function runLive(frames) {
     history.push(frame)
     while (history.length && history[0].t < frame.t - 4000) history.shift()
     if (i % 2 || frame.t < cooldown) return
-    const { best, match } = recognizer.classify(history, frame.t, 16 / 9)
+    const { best, match } = rec.classify(history, frame.t, 16 / 9)
     if (best) closest = Math.min(closest, best.distance)
     if (match) {
       casts.push(frame.t)
@@ -133,6 +137,17 @@ check(
 check('live pinch casts within 300 ms of closing', livePinch.casts.length > 0 && Math.abs(livePinch.casts[0] - closesAt) < 300)
 
 const slowPinch = runLive(movement(3000, pinchAt(1000, 450)))
+// Starting from a very different hand position (fingers half curled, then
+// opening into the pinch). Reported, not checked: with only these three very
+// uniform synthetic examples the limit is tight, and this shows how much the
+// sensitivity would have to rise for it to cast.
+const curledStart = runLive(movement(3000, (t) => {
+  const f = smoothstep((t - 1000) / 300)
+  return { fist: 0.5 * (1 - f), pinch: f }
+}))
+console.log(
+  `info  live pinch from a curled start: closest ${curledStart.closest.toFixed(3)}, limit ${entry.threshold.toFixed(3)}, casts at sensitivity ×${(Math.ceil((curledStart.closest / entry.threshold) * 10) / 10).toFixed(1)}`,
+)
 check('slower live pinch still casts', slowPinch.casts.length === 1, `closest ${slowPinch.closest.toFixed(3)}`)
 
 const negatives = {
@@ -147,15 +162,20 @@ for (const [name, at] of Object.entries(negatives)) {
   check(`no cast: ${name}`, result.casts.length === 0, `closest ${Number.isFinite(result.closest) ? result.closest.toFixed(3) : 'skipped (too little movement)'}`)
 }
 
-// ---------- the packaged Pinch spark spell (real recordings) ----------
-// Each recorded example is played back as a live stream (held still before
-// and after) to a recogniser built from the *other* examples, so it has never
-// seen it. It should cast. The same movement played backwards (releasing a
-// pinch) should not.
+// ---------- the built-in spells ----------
+// Pinch-Coins has five real recordings; Snap-Brightness and Push-Fireball have
+// five generated ones each (scripts/make-spells.js). Each example is played
+// back as a live stream, held still before and after, to a recogniser with
+// all three spells but without that example, so it has never seen it. It
+// should cast its own spell, once, and no other. Played backwards it should
+// cast nothing. And with its first third replaced by its middle pose (a
+// different starting position) it should still cast its own spell.
 const { readFileSync } = await import('node:fs')
-const packaged = JSON.parse(readFileSync(new URL('../public/library/spells/pinch-spark.json', import.meta.url), 'utf8'))
-const realExamples = packaged.gesture.examples
-function stream(frames, aspect) {
+const spellsDir = new URL('../public/library/spells/', import.meta.url)
+const builtIns = JSON.parse(readFileSync(new URL('index.json', spellsDir), 'utf8')).map((file) =>
+  JSON.parse(readFileSync(new URL(file, spellsDir), 'utf8')),
+)
+function stream(frames) {
   const step = 1000 / 30
   const out = []
   let t = 0
@@ -164,11 +184,11 @@ function stream(frames, aspect) {
   for (const frame of frames) out.push({ ...frame, t: start + frame.t })
   t = out[out.length - 1].t
   for (let i = 0; i < 30; i++) out.push({ ...frames[frames.length - 1], t: (t += step) })
-  return { frames: out, aspect }
+  return out
 }
-function runWith(rec, { frames, aspect }) {
+function runWith(rec, frames, aspect) {
   const history = []
-  let casts = 0
+  const casts = []
   let closest = Infinity
   let cooldown = 0
   frames.forEach((frame, i) => {
@@ -177,23 +197,45 @@ function runWith(rec, { frames, aspect }) {
     const { best, match } = rec.classify(history, frame.t, aspect)
     if (best) closest = Math.min(closest, best.distance)
     if (match) {
-      casts++
+      casts.push(match.spell.id)
       cooldown = frame.t + 1000
       history.length = 0
     }
   })
   return { casts, closest }
 }
-realExamples.forEach((example, k) => {
-  const others = realExamples.filter((_, j) => j !== k)
-  const rec = buildRecognizer([{ ...packaged, gesture: { examples: others } }])
-  const threshold = rec.entries[0].threshold
-  const forward = runWith(rec, stream(example.frames, example.aspect))
-  const reversed = [...example.frames].reverse().map((frame, i) => ({ ...frame, t: example.frames[i].t }))
-  const backward = runWith(rec, stream(reversed, example.aspect))
-  check(`real pinch ${k + 1} casts (unseen)`, forward.casts === 1, `closest ${forward.closest.toFixed(3)} / limit ${threshold.toFixed(3)}`)
-  check(`real pinch ${k + 1} released (reversed) does not cast`, backward.casts === 0, `closest ${Number.isFinite(backward.closest) ? backward.closest.toFixed(3) : 'skipped'}`)
-})
+for (const spellUnderTest of builtIns) {
+  spellUnderTest.gesture.examples.forEach((example, k) => {
+    const rec = buildRecognizer(
+      builtIns.map((other) =>
+        other === spellUnderTest ? { ...other, gesture: { examples: other.gesture.examples.filter((_, j) => j !== k) } } : other,
+      ),
+    )
+    const own = rec.entries.find((e) => e.spell.id === spellUnderTest.id)
+    const label = `${spellUnderTest.name} ${k + 1}`
+    const forward = runWith(rec, stream(example.frames), example.aspect)
+    check(
+      `${label} casts ${spellUnderTest.name} only (unseen)`,
+      forward.casts.length === 1 && forward.casts[0] === spellUnderTest.id,
+      `cast: ${forward.casts.join(', ') || 'none'}, closest ${forward.closest.toFixed(3)} / limit ${own.threshold.toFixed(3)}`,
+    )
+    const middle = example.frames[Math.floor(example.frames.length / 2)]
+    const changedStart = example.frames.map((frame, i) => (i < example.frames.length / 3 ? { ...middle, t: frame.t } : frame))
+    const fromMiddle = runWith(rec, stream(changedStart), example.aspect)
+    check(
+      `${label} from another starting position casts`,
+      fromMiddle.casts.length === 1 && fromMiddle.casts[0] === spellUnderTest.id,
+      `cast: ${fromMiddle.casts.join(', ') || 'none'}, closest ${fromMiddle.closest.toFixed(3)}`,
+    )
+    const reversed = [...example.frames].reverse().map((frame, i) => ({ ...frame, t: example.frames[i].t }))
+    const backward = runWith(rec, stream(reversed), example.aspect)
+    check(
+      `${label} reversed casts nothing`,
+      backward.casts.length === 0,
+      `cast: ${backward.casts.join(', ') || 'none'}, closest ${Number.isFinite(backward.closest) ? backward.closest.toFixed(3) : 'skipped'}`,
+    )
+  })
+}
 
 // ---------- spark chime ----------
 const { synthesiseSparkChime, renderSparkChime, CHIME_SECONDS, SAMPLE_RATE } = await import('../src/effects/sparkSound.js')
@@ -204,9 +246,8 @@ let chimePeak = 0
 for (let i = 0; i < chimeLength; i++) chimePeak = Math.max(chimePeak, Math.abs(chime.left[i]), Math.abs(chime.right[i]))
 check('chime peak is 0.8 (no clipping)', Math.abs(chimePeak - 0.8) < 1e-3, chimePeak.toFixed(3))
 check('chime ends in silence', chime.left[chimeLength - 1] === 0 && chime.right[chimeLength - 1] === 0)
-// Loudness (root mean square) in 0.3 s slices: it builds while the bells
-// ripple upwards, then every slice after the loudest is quieter, while the
-// sparks are still flying (to 1.5 s) it should still be clearly audible.
+// Loudness (root mean square) in 0.3 s slices: loudest near the start, then
+// every slice quieter than the one before, still audible at 1.2–1.5 s.
 const slices = []
 for (let s = 0; s + 0.3 <= CHIME_SECONDS + 1e-9; s += 0.3) {
   let sum = 0
@@ -220,6 +261,39 @@ const fading = loudest <= 2 && slices.slice(loudest + 1).every((value, i) => val
 check('chime fades out over time', fading, `loudness per 0.3 s: ${slices.map((v) => v.toFixed(3)).join(' ')}`)
 const { blob } = await renderSparkChime()
 check('chime WAV has header + 16-bit stereo samples', blob.size === 44 + chimeLength * 4, `${blob.size} bytes`)
+
+// ---------- fire crackle ----------
+const { synthesiseFireCrackle, renderFireCrackle, CRACKLE_SECONDS } = await import('../src/effects/fireSound.js')
+const fire = synthesiseFireCrackle()
+const fireLength = fire.left.length
+check('fire crackle is 2.0 s long', fireLength === Math.ceil(CRACKLE_SECONDS * SAMPLE_RATE), `${(fireLength / SAMPLE_RATE).toFixed(2)} s`)
+let firePeak = 0
+let fireSquares = 0
+for (let i = 0; i < fireLength; i++) {
+  firePeak = Math.max(firePeak, Math.abs(fire.left[i]), Math.abs(fire.right[i]))
+  fireSquares += fire.left[i] ** 2
+}
+check('fire crackle peak is 0.85 (no clipping)', Math.abs(firePeak - 0.85) < 1e-3, firePeak.toFixed(3))
+check('fire crackle ends in silence', fire.left[fireLength - 1] === 0 && fire.right[fireLength - 1] === 0)
+// Crackles are sharp peaks well above the average level.
+const crest = firePeak / Math.sqrt(fireSquares / fireLength)
+check('fire crackle has crackles (peaks far above the average)', crest > 4, `peak/average ${crest.toFixed(1)}`)
+const fireSlices = []
+for (let s0 = 0; s0 + 0.2 <= CRACKLE_SECONDS + 1e-9; s0 += 0.2) {
+  let sum = 0
+  const from = Math.round(s0 * SAMPLE_RATE)
+  const to = Math.round((s0 + 0.2) * SAMPLE_RATE)
+  for (let i = from; i < to; i++) sum += fire.left[i] ** 2 + fire.right[i] ** 2
+  fireSlices.push(Math.sqrt(sum / (2 * (to - from))))
+}
+const fireLoudest = fireSlices.indexOf(Math.max(...fireSlices))
+check(
+  'fire crackle builds to the burst (0.6–1.2 s), then dies away',
+  fireLoudest >= 3 && fireLoudest <= 5 && fireSlices[fireSlices.length - 1] < fireSlices[fireLoudest] * 0.1,
+  `loudness per 0.2 s: ${fireSlices.map((v) => v.toFixed(3)).join(' ')}`,
+)
+const fireWav = await renderFireCrackle()
+check('fire crackle WAV has header + 16-bit stereo samples', fireWav.blob.size === 44 + fireLength * 4, `${fireWav.blob.size} bytes`)
 
 console.log(failures ? `\n${failures} check(s) failed` : '\nAll checks passed')
 process.exit(failures ? 1 : 0)

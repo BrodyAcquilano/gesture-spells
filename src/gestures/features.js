@@ -103,3 +103,21 @@ export function prepareSequence(frames, aspect) {
   )
   return { vectors, movement: movementOf(vectors) }
 }
+
+// The moment a movement arrives at its final pose: for a pinch, when the
+// fingers touch. Found as the first frame, after the hand was furthest from
+// its final pose, that is within a quarter of that distance of it. Spells
+// cast at this moment rather than at the end of the recording, which may
+// include the hand holding still.
+export function arrivalTime(frames, aspect) {
+  const vectors = sequenceFeatures(frames, aspect)
+  const tail = vectors.slice(-3)
+  const finalPose = tail[0].map((_, d) => tail.reduce((sum, v) => sum + v[d], 0) / tail.length)
+  const away = vectors.map((vector) => distance(vector, finalPose))
+  let peak = 0
+  for (let i = 1; i < away.length; i++) if (away[i] > away[peak]) peak = i
+  for (let i = peak; i < away.length; i++) {
+    if (away[i] < away[peak] * 0.25) return frames[i].t
+  }
+  return frames[frames.length - 1].t
+}

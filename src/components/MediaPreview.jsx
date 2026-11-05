@@ -1,11 +1,12 @@
 import { previewKind } from '../library/formats.js'
-import SparksPreview from './SparksPreview.jsx'
+import ProceduralPreview from './ProceduralPreview.jsx'
+import { PROCEDURAL_ANIMATIONS } from '../effects/animations.js'
 import ComingSoon from './ComingSoon.jsx'
 
 // Shows or plays one library item, whatever its format. Animations are
 // silent; sound only ever comes from audio items.
 export default function MediaPreview({ kind, item, compact = false }) {
-  if (item.procedural === 'sparks') return <SparksPreview />
+  if (kind === 'animations' && PROCEDURAL_ANIMATIONS[item.procedural]) return <ProceduralPreview name={item.procedural} />
 
   switch (previewKind(kind, item)) {
     case 'video':

@@ -7,6 +7,7 @@
 // each ear.
 //
 // Layers:
+//   strike   two bright notes at the very start, so the sound lands on the cast
 //   bells    nine high notes from a pentatonic scale, rising in a quick ripple.
 //            Each is a sine plus a quieter overtone at 2.76× its pitch (the
 //            slightly "off" overtone is what makes a bell sound like a bell),
@@ -80,7 +81,7 @@ export function synthesiseSparkChime() {
   const bellsRight = new Float32Array(length)
 
   NOTES.forEach((frequency, n) => {
-    const start = n * 0.065 + random() * 0.02
+    const start = 0.02 + n * 0.045 + random() * 0.015
     const decay = 0.28 + random() * 0.2 // seconds for the note to fall to about a third
     const pan = random() * 1.6 - 0.8 // -1 left … 1 right
     const leftGain = Math.cos(((pan + 1) * Math.PI) / 4)
@@ -95,6 +96,22 @@ export function synthesiseSparkChime() {
       bellsRight[i] += value * rightGain
     }
   })
+
+  // Strike: two bright high notes right at the start, louder than the rest,
+  // so the sound lands on the moment of the cast instead of building up.
+  for (const [frequency, level] of [
+    [2637.02, 0.22],
+    [3520, 0.14],
+  ]) {
+    for (let i = 0; i < length; i++) {
+      const t = i / SAMPLE_RATE
+      const envelope = Math.min(1, t / 0.002) * Math.exp(-t / 0.22)
+      if (envelope < 1e-4 && t > 0.01) break
+      const value = level * envelope * (Math.sin(2 * Math.PI * frequency * t) + 0.3 * Math.sin(2 * Math.PI * frequency * 2.76 * t))
+      bellsLeft[i] += value
+      bellsRight[i] += value
+    }
+  }
 
   // Echo: add delayed copies, each quieter and passed through a low-pass again.
   const delay = Math.round(ECHO_SECONDS * SAMPLE_RATE)

@@ -1,43 +1,51 @@
-// Plays a spell's effects on a canvas: its animation at a point, and its
-// sound. Used by live casting and by the spellbook's gesture playback.
+// Plays a spell's effects on a canvas: its animation and its sound. Used by
+// live casting and by the spellbook's playback.
 //
-//   cast({ animation, audio, x, y, label })   x, y in canvas pixels
-//   update(dt) and draw(ctx) every frame, clear() when stopping
+//   cast({ animation, audio, points, map, x, y, label, sound })
+//       points + map: the hand's landmarks and a function mapping a landmark
+//       to canvas pixels; the animation then appears at its anchor on the
+//       hand (pinch point, index fingertip or palm). Without them it appears
+//       at x, y.
+//   update(dt) and draw(ctx) every frame
 //   pause() / resume()  freeze and continue everything, sound and video included
-//   busy()  true while anything is still playing: particles, a video or image,
-//           a label or a sound. Nothing is cut short, so a caller can wait
-//           for busy() to turn false to know the longest part has finished.
+//   busy()  true while anything is still playing. Nothing is cut short, so a
+//           caller can wait for busy() to turn false to know the longest part
+//           has finished.
+//   clear() stops everything
 //
-// Animations: the built-in ✨ sparks are drawn by code. Video files (WebM,
-// MP4) play centred on the point, to their end. Images (GIF, WebP, PNG) show for 1.5 s and
-// fade. Lottie files are not drawn yet. Audio files play through an <audio>
-// element. The spell's name floats up briefly so a cast is always visible.
-import { createSparks } from './sparks.js'
+// Animations drawn by code (coins, illumination, fireball) come from
+// animations.js. Video files (WebM, MP4) play centred on the point, to their
+// end. Images (GIF, WebP, PNG) show for 1.5 s and fade. Lottie files are not
+// drawn yet. Audio plays through the Web Audio API (audioEngine.js), so it
+// starts the instant the spell is cast.
+import { PROCEDURAL_ANIMATIONS, anchorOf } from './animations.js'
+import { anchorPoint } from '../tracking/landmarks.js'
 import { previewKind } from '../library/formats.js'
+import { pauseAllSounds, playSound as startSound, resumeAllSounds } from './audioEngine.js'
 
 const IMAGE_SECONDS = 1.5
 const LABEL_SECONDS = 1.2
 
 export function createEffectPlayer() {
-  const sparks = createSparks()
-  let overlays = [] // { element, kind, x, y, age, life }
+  let instances = [] // procedural animations playing
+  let overlays = [] // { element, kind, x, y, age, life, failed }
   let labels = [] // { text, x, y, age }
+  let pending = [] // animations cast since the last draw (they need the canvas size)
   const sounds = new Set()
   let paused = false
 
   function playSound(audio) {
     if (!audio?.url) return
-    const element = new Audio(audio.url)
-    sounds.add(element)
-    element.addEventListener('ended', () => sounds.delete(element))
-    element.addEventListener('error', () => sounds.delete(element))
-    element.play().catch(() => sounds.delete(element))
+    const handle = startSound(audio.url)
+    sounds.add(handle)
+    handle.onEnd(() => sounds.delete(handle))
   }
 
-  function startAnimation(animation, x, y) {
+  function startAnimation(animation, x, y, ctx) {
     if (!animation) return
-    if (animation.procedural === 'sparks') {
-      sparks.burst(x, y)
+    const procedural = PROCEDURAL_ANIMATIONS[animation.procedural]
+    if (procedural) {
+      instances.push(procedural.create(x, y, ctx.canvas.height, ctx.canvas.width))
       return
     }
     if (!animation.url) return
@@ -59,14 +67,16 @@ export function createEffectPlayer() {
   }
 
   return {
-    cast({ animation, audio, x, y, label, sound = true }) {
-      startAnimation(animation, x, y)
+    cast({ animation, audio, points, map, x, y, label, sound = true }) {
+      if (points && map) [x, y] = map(anchorPoint(points, anchorOf(animation)))
+      pending.push({ animation, x, y })
       if (sound) playSound(audio)
       if (label) labels.push({ text: label, x, y, age: 0 })
     },
     update(dt) {
       if (paused) return
-      sparks.update(dt)
+      for (const instance of instances) instance.update(dt)
+      instances = instances.filter((instance) => !instance.done)
       for (const overlay of overlays) overlay.age += dt
       overlays = overlays.filter((overlay) => {
         const done = overlay.age > overlay.life || overlay.failed || (overlay.kind === 'video' && overlay.element.ended)
@@ -77,6 +87,8 @@ export function createEffectPlayer() {
       labels = labels.filter((label) => label.age < LABEL_SECONDS)
     },
     draw(ctx) {
+      for (const { animation, x, y } of pending) startAnimation(animation, x, y, ctx)
+      pending = []
       const size = ctx.canvas.height * 0.45
       for (const overlay of overlays) {
         const { element } = overlay
@@ -89,7 +101,7 @@ export function createEffectPlayer() {
         ctx.drawImage(element, overlay.x - (width * fit) / 2, overlay.y - (height * fit) / 2, width * fit, height * fit)
         ctx.restore()
       }
-      sparks.draw(ctx)
+      for (const instance of instances) instance.draw(ctx)
       ctx.save()
       ctx.font = `600 ${Math.round(ctx.canvas.height * 0.04)}px "Cascadia Code", Consolas, monospace`
       ctx.textAlign = 'center'
@@ -104,24 +116,27 @@ export function createEffectPlayer() {
     },
     pause() {
       paused = true
-      for (const element of sounds) element.pause()
+      pauseAllSounds()
       for (const overlay of overlays) if (overlay.kind === 'video') overlay.element.pause()
     },
     resume() {
       paused = false
-      for (const element of sounds) element.play().catch(() => sounds.delete(element))
+      resumeAllSounds()
       for (const overlay of overlays) if (overlay.kind === 'video') overlay.element.play().catch(() => {})
     },
     busy() {
-      return sparks.count > 0 || overlays.length > 0 || labels.length > 0 || sounds.size > 0
+      return pending.length > 0 || instances.length > 0 || overlays.length > 0 || labels.length > 0 || sounds.size > 0
     },
     clear() {
+      const wasPaused = paused
       paused = false
-      sparks.clear()
+      pending = []
+      instances = []
       for (const overlay of overlays) if (overlay.kind === 'video') overlay.element.pause()
       overlays = []
       labels = []
-      for (const element of sounds) element.pause()
+      if (wasPaused) resumeAllSounds()
+      for (const handle of [...sounds]) handle.stop()
       sounds.clear()
     },
   }

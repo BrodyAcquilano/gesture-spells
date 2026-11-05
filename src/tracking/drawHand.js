@@ -15,6 +15,8 @@ export function drawHand(ctx, points, toCanvas, color = 'rgba(0, 240, 255, 0.75)
     ctx.lineTo(...canvasPoints[b])
   }
   ctx.stroke()
+  // No glow on the 21 dots: blurring each one every frame is slow.
+  ctx.shadowBlur = 0
   ctx.fillStyle = '#ff2bd6'
   for (const [x, y] of canvasPoints) {
     ctx.beginPath()

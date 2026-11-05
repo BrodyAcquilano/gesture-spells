@@ -7,14 +7,30 @@
 // Packaged spells (gesture examples included) are JSON files listed in
 // public/library/spells/index.json.
 import { renderSparkChime } from '../effects/sparkSound.js'
+import { renderFireCrackle } from '../effects/fireSound.js'
 
 export const PROCEDURAL = {
   animations: [
     {
-      id: 'builtin:sparks',
-      name: 'Sparks ✨',
-      procedural: 'sparks',
-      description: 'A burst of ✨ sparks that fly out, fall and fade over about 1.3 s. Drawn by code (src/effects/sparks.js).',
+      id: 'builtin:coins',
+      name: 'Coins 🪙',
+      procedural: 'coins',
+      description:
+        'A quick burst of spinning 🪙 gold coins that fly out from the pinch and fade in under half a second. Drawn by code (src/effects/coins.js).',
+    },
+    {
+      id: 'builtin:illumination',
+      name: 'Illumination',
+      procedural: 'illumination',
+      description:
+        'A point of warm white light that flares at the index fingertip with a flash ring and crossing light streaks, glows, and fades over about 2 s. Drawn by code (src/effects/illumination.js).',
+    },
+    {
+      id: 'builtin:fireball',
+      name: 'Fireball',
+      procedural: 'fireball',
+      description:
+        'A ball of fire forms at the palm and rushes towards the camera, growing as it comes, then bursts into flames and embers (about 2 s). Red, orange and yellow light drawn by code (src/effects/fireball.js).',
     },
   ],
   audio: [
@@ -24,7 +40,15 @@ export const PROCEDURAL = {
       procedural: 'spark-chime',
       render: renderSparkChime,
       description:
-        'A rippling bell chime with a sparkly shimmer and an echo, about 1.8 s long, fading out like the sparks animation. Computed sample by sample in JavaScript and saved as a WAV file (src/effects/sparkSound.js).',
+        'A bright strike, then a rippling bell chime with a sparkly shimmer and an echo, about 1.8 s, fading out. Used by Pinch coins. Computed sample by sample in JavaScript and saved as a WAV file (src/effects/sparkSound.js).',
+    },
+    {
+      id: 'builtin:fire-crackle',
+      name: 'Fire crackle',
+      procedural: 'fire-crackle',
+      render: renderFireCrackle,
+      description:
+        'A rushing whoosh and roar with crackles and pops, building for 0.9 s like the fireball, then dying away (2 s). Computed sample by sample in JavaScript and saved as a WAV file (src/effects/fireSound.js).',
     },
   ],
 }

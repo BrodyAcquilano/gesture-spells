@@ -1,10 +1,10 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useData } from '../library/DataContext.js'
 import { useHandCamera } from '../tracking/useHandCamera.js'
 import { drawHand, mirroredMapper } from '../tracking/drawHand.js'
-import { handPoint } from '../tracking/landmarks.js'
 import { buildRecognizer } from '../gestures/recognizer.js'
 import { createEffectPlayer } from '../effects/effectPlayer.js'
+import { preloadSound } from '../effects/audioEngine.js'
 
 const HISTORY_MS = 4000
 const COOLDOWN_MS = 1000
@@ -14,6 +14,10 @@ const COOLDOWN_MS = 1000
 export default function LiveCaster() {
   const { spells, findFile } = useData()
   const recognizer = useMemo(() => buildRecognizer(spells), [spells])
+  // Decode every spell's sound now, so casting plays it without delay.
+  useEffect(() => {
+    for (const spell of spells) preloadSound(findFile('audio', spell.audioId)?.url)
+  }, [spells, findFile])
   const live = useRef(null) // per-run state the loop changes every frame
   const [stats, setStats] = useState({ fps: 0, hands: 0, casts: 0, best: null, last: '' })
 
@@ -38,12 +42,11 @@ export default function LiveCaster() {
         s.best = best
         if (match) {
           const { spell } = match
-          const [x, y] = map(handPoint(hand.points))
           s.player.cast({
             animation: findFile('animations', spell.animationId),
             audio: findFile('audio', spell.audioId),
-            x,
-            y,
+            points: hand.points,
+            map,
             label: spell.name,
           })
           s.casts++

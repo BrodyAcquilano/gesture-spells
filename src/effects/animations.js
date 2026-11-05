@@ -1,0 +1,36 @@
+// The animations drawn by code. Each `create` returns one playing instance:
+//   { update(dt), draw(ctx), done }
+// `anchor` says where on the hand it appears (see anchorPoint in landmarks.js).
+import { createCoins } from './coins.js'
+import { createIllumination } from './illumination.js'
+import { createFireball } from './fireball.js'
+
+export const PROCEDURAL_ANIMATIONS = {
+  coins: {
+    anchor: 'pinch',
+    create(x, y, height) {
+      const coins = createCoins()
+      coins.burst(x, y, undefined, height / 720)
+      return {
+        update: (dt) => coins.update(dt),
+        draw: (ctx) => coins.draw(ctx),
+        get done() {
+          return coins.count === 0
+        },
+      }
+    },
+  },
+  illumination: {
+    anchor: 'indexTip',
+    create: (x, y, height) => createIllumination(x, y, height),
+  },
+  fireball: {
+    anchor: 'palm',
+    create: (x, y, height, width) => createFireball(x, y, height, width),
+  },
+}
+
+// Where an animation appears on the hand. Files appear at the pinch point.
+export function anchorOf(animation) {
+  return PROCEDURAL_ANIMATIONS[animation?.procedural]?.anchor ?? 'pinch'
+}

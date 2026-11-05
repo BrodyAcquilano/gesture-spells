@@ -37,3 +37,19 @@ export function handPoint(points) {
   const index = points[INDEX_TIP]
   return [(thumb[0] + index[0]) / 2, (thumb[1] + index[1]) / 2]
 }
+
+// Where an animation appears on the hand:
+//   'pinch'     between thumb tip and index fingertip (coins)
+//   'indexTip'  the index fingertip (illumination)
+//   'palm'      the centre of the palm (fireball)
+export const PALM = [0, 5, 9, 13, 17]
+
+export function anchorPoint(points, anchor = 'pinch') {
+  if (anchor === 'indexTip') return [points[INDEX_TIP][0], points[INDEX_TIP][1]]
+  if (anchor === 'palm') {
+    const x = PALM.reduce((sum, i) => sum + points[i][0], 0) / PALM.length
+    const y = PALM.reduce((sum, i) => sum + points[i][1], 0) / PALM.length
+    return [x, y]
+  }
+  return handPoint(points)
+}
