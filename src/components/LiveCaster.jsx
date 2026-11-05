@@ -2,13 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useData } from '../library/DataContext.js'
 import { useHandCamera } from '../tracking/useHandCamera.js'
 import { drawHand, mirroredMapper } from '../tracking/drawHand.js'
-import { buildRecognizer } from '../gestures/recognizer.js'
+import { buildRecognizer, createLiveMatcher } from '../gestures/recognizer.js'
 import { createEffectPlayer } from '../effects/effectPlayer.js'
 import { preloadSound } from '../effects/audioEngine.js'
 import { startRecording, timestampId } from '../record/videoRecorder.js'
 
-const HISTORY_MS = 4000
-const COOLDOWN_MS = 1000
 
 // Live camera with recording.
 //
@@ -28,10 +26,14 @@ const COOLDOWN_MS = 1000
 // microphone doesn't pick them up and Finalize doesn't add them twice.
 export default function LiveCaster({ recognize = true, spellIds = null, details, onPhase, onSaved }) {
   const { spells, findFile, saveRecording } = useData()
-  const active = useMemo(
-    () => (recognize ? spells.filter((spell) => !spellIds || spellIds.includes(spell.id)) : []),
-    [spells, spellIds, recognize],
-  )
+  // The ticked spells, as a string, so the recogniser is only rebuilt when
+  // the choice really changes (not every time the page redraws).
+  const idsKey = spellIds ? [...spellIds].sort().join('|') : null
+  const active = useMemo(() => {
+    if (!recognize) return []
+    const ids = idsKey == null ? null : idsKey.split('|')
+    return spells.filter((spell) => !ids || ids.includes(spell.id))
+  }, [spells, idsKey, recognize])
   const recognizer = useMemo(() => buildRecognizer(active), [active])
   // Decode every spell's sound now, so casting plays it without delay.
   useEffect(() => {
@@ -53,7 +55,12 @@ export default function LiveCaster({ recognize = true, spellIds = null, details,
 
   const { videoRef, canvasRef, status, error, hasMicrophone, start, stop, getStream } = useHandCamera(
     ({ ctx, w, h, hands, now, dt, fresh }) => {
-      live.current ??= { history: [], player: createEffectPlayer(), cooldown: 0, tick: 0, frames: 0, statsAt: now, casts: 0, best: null, last: '' }
+      live.current ??= { player: createEffectPlayer(), frames: 0, statsAt: now, casts: 0, best: null, last: '' }
+      if (live.current.recognizer !== recognizer) {
+        // The spells changed: a new matcher, but effects already playing carry on.
+        live.current.recognizer = recognizer
+        live.current.matcher = createLiveMatcher(recognizer)
+      }
       const s = live.current
       const rec = recording.current
       const hand = hands[0]
@@ -61,19 +68,15 @@ export default function LiveCaster({ recognize = true, spellIds = null, details,
 
       if (fresh) {
         s.frames++
-        if (hand) {
-          s.history.push({ t: now, label: hand.label, points: hand.points })
-          if (rec) rec.track.push({ t: (now - rec.handle.startedAt) / 1000, label: hand.label, points: hand.points })
-        } else if (s.history.length && now - s.history[s.history.length - 1].t > 300) {
-          s.history = [] // the hand left; start afresh when it returns
-        }
-        while (s.history.length && s.history[0].t < now - HISTORY_MS) s.history.shift()
+        if (hand && rec) rec.track.push({ t: (now - rec.handle.startedAt) / 1000, label: hand.label, points: hand.points })
         if (rec) rec.size = { width: w, height: h }
 
-        // Matching every other camera frame is plenty and halves the work.
-        if (hand && recognizer.entries.length && now >= s.cooldown && ++s.tick % 2 === 0) {
-          const { best, match } = recognizer.classify(s.history, now, w / h)
-          s.best = best
+        // The matcher watches the hand and, when it settles after moving,
+        // compares that movement with the spells' examples.
+        const result = hand && recognizer.entries.length ? s.matcher.push({ t: now, label: hand.label, points: hand.points }, w / h) : null
+        if (result) {
+          s.best = result.best
+          const { match } = result
           if (match) {
             const { spell } = match
             s.player.cast({
@@ -87,8 +90,6 @@ export default function LiveCaster({ recognize = true, spellIds = null, details,
             if (rec) rec.casts.push({ t: (now - rec.handle.startedAt) / 1000, spellId: spell.id, points: hand.points })
             s.casts++
             s.last = spell.name
-            s.cooldown = now + COOLDOWN_MS
-            s.history = []
           }
         }
       }
@@ -191,10 +192,10 @@ export default function LiveCaster({ recognize = true, spellIds = null, details,
                 {stats.casts} cast{stats.casts === 1 ? '' : 's'}
                 {stats.last && ` · last: ${stats.last}`}
               </span>
-              <span title="How close the movement is to the nearest spell. It casts when the distance goes below the limit.">
+              <span title="After each movement: the nearest spell, how close the movement was, and that spell's limit. It casts when the first number is below the second.">
                 {stats.best
-                  ? `closest: ${stats.best.spell.name} ${stats.best.distance.toFixed(2)} / ${stats.best.threshold.toFixed(2)}`
-                  : 'closest: —'}
+                  ? `last move: ${stats.best.spell.name} ${stats.best.distance.toFixed(2)} / ${stats.best.threshold.toFixed(2)}`
+                  : 'last move: —'}
               </span>
             </>
           )}

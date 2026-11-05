@@ -37,7 +37,8 @@ either goes missing.
 | --- | --- |
 | `npm run dev` | Serves the app at http://localhost:5173 |
 | `npm run check` | Checks the gesture maths, the spells and the sounds made by code, without a camera (see "Checking the maths") |
-| `npm run make-spells` | Regenerates the gesture examples of Snap-Brightness and Push-Fireball, keeping their edited details (see "The spells") |
+| `npm run make-spells` | Recreates Push-Fireball with generated examples if its file is missing; never touches existing spells (see "The spells") |
+| `npm run tune` | Tries recogniser settings on your recorded examples and prints the best (see "Tuning the recogniser") |
 | `npm run build` | Builds the app into `dist/` |
 | `npm run lint` | Checks the code with ESLint |
 | `npm run setup` | Puts the MediaPipe runtime and hand model into `public/` |
@@ -238,24 +239,20 @@ keeps its file name.
 
 The three that come with the app:
 
-- **Pinch-Coins** uses five real pinches recorded in the app.
-- **Snap-Brightness** and **Push-Fireball** were generated, not recorded, by
-  `scripts/make-spells.js`. It takes the real hand from the first frame of
-  the Pinch-Coins recordings, so the proportions are a real tracked hand's,
-  and bends its fingers frame by frame:
-  - the snap goes from the thumb pressed on the middle fingertip to the
-    middle finger snapped into the palm, in about 0.1 s
-  - the fireball goes from a fist to a spread open hand pushed towards the
-    camera, in about 0.3 s.
+- **Pinch-Coins**: real pinches recorded in the app, in two styles (a small
+  and a larger pinch), with both hands.
+- **Snap-Brightness**: real snaps, done the way people actually snap, with
+  the palm towards yourself: the camera first sees the back of the hand,
+  and the hand turns over to show the front as it snaps.
+- **Push-Fireball**: real recordings plus five generated examples from
+  `scripts/make-spells.js`, which bends the fingers of the real hand from
+  the Pinch-Coins recordings from a fist to a spread hand pushed towards the
+  camera. `npm run make-spells` only recreates this spell if its file is
+  missing; it never touches existing spells.
 
-  Each example is moved, turned, scaled and timed a little differently, and
-  tracker-like jitter is added. Each one goes through the same trimming as
-  the in-app recorder. The generated poses are approximations of real hands,
-  so if these two spells don't cast reliably with your hand, raise their
-  sensitivity, or clear their examples and record your own.
-
-  `npm run make-spells` regenerates their examples and keeps everything else
-  you edited about them.
+Recording more examples in your own style, with the hand you use, makes a
+spell more reliable. Very different styles of the same gesture are fine as
+long as each style has a few examples.
 
 ## How animations work
 
@@ -332,52 +329,83 @@ elsewhere in the project (`.webm`, `.mp4`, `.mov`, `.mkv`), except in
 1. **Hand tracking (pretrained model).** MediaPipe's Hand Landmarker finds
    up to two hands in each camera frame and gives 21 points per hand: the
    wrist, each knuckle and each fingertip.
-2. **Turning a frame into numbers** (`src/gestures/features.js`). Each frame
-   becomes 46 numbers:
+2. **Recording an example** (`src/gestures/trim.js`). The recorder captures
+   2.5 seconds and keeps only the stretch from when the hand started moving
+   to when it settled into its final pose.
+3. **Turning a frame into numbers** (`src/gestures/features.js`). Each frame
+   becomes a list of numbers, in groups, each group multiplied by a weight:
    - the hand's shape: each point relative to the wrist, divided by the palm
-     length, so distance from the camera doesn't matter
-   - the distance from the thumb tip to each fingertip, weighted ×3. This is
-     what makes a pinch or a snap stand out.
-   - where the hand is relative to its average position, for gestures drawn
-     in the air.
+     length, so distance from the camera doesn't matter (×1)
+   - the distance from the thumb tip to each fingertip (×2)
+   - **where the hand moves**, measured from where it ends up, in palm
+     lengths (×4). On your real recordings this is what tells a pinch, a
+     snap and a fireball apart best.
 
-   Left hands are mirrored so either hand works.
-3. **Recording** (`src/gestures/trim.js`). The recorder captures 2.5 seconds
-   and keeps only the stretch where the hand moved away from its starting
-   pose and settled into its final pose.
-4. **The cast moment.** For each example, the moment the hand arrives at its
-   final pose: for a pinch, when the fingers touch. Spells cast then, not
-   when the hand has finished holding still.
-5. **Matching** (`src/gestures/recognizer.js`, `src/gestures/dtw.js`). Every
-   other camera frame:
-   - only the end of each example is used: its last 60% up to the cast
-     moment. That is why a gesture can start from any hand position.
-   - the last moment of live movement is compared with it using *dynamic
-     time warping*, which lines two movements up even when one is faster in
-     places, plus a term for how far apart the final poses are, so a
-     gesture that ends wrong (a snap undone instead of done) doesn't match
-   - if the closest spell is under its limit, it casts, followed by a
-     1-second pause before it can cast again
-   - a movement much smaller than the examples is skipped, so a still hand
-     never casts.
-6. **Each spell's limit** comes from two things, then is scaled by its
-   sensitivity:
-   - how much the spell's own examples differ from each other (twice the
-     largest difference, between 0.3 and 0.9)
-   - the nearest movement that must *not* cast it: the other spells'
-     examples, and its own examples played backwards (releasing a pinch
-     instead of pressing it). The limit stays below 0.65 of that distance,
-     so spells can't set each other off.
+   Left hands are mirrored so either hand works. The movement is resampled
+   to one step every 60 ms, so quick and slow gestures are compared at the
+   same time resolution.
+4. **Finding a live gesture** (`createLiveMatcher` in
+   `src/gestures/recognizer.js`). The app watches how much the hand moves
+   from frame to frame: the average of the five points that moved most, so
+   a pinch, where only two fingers move, still counts. When the hand has
+   been clearly moving and then settles, a gesture has just been completed.
+   That is the moment it casts, with the animation where the hand is.
+5. **Matching it.** The last few seconds of movement up to that moment are
+   compared with every recorded example using *dynamic time warping*, which
+   lines two movements up even when one is faster in places. The example
+   may line up with any later part of those seconds, since the live stretch
+   also holds whatever the hand did before, but both must end together.
+   A term for how far apart the two final poses are is added, so a gesture
+   that ends wrong (a snap undone instead of done) doesn't match. The spell
+   of the closest example wins, if it is within that spell's limit.
+6. **Each spell's limit** comes from its own examples: how close each one
+   is to its nearest fellow example (90% of the way up that list, ×1.5). A
+   spell done in two styles still gets an honest limit, because each
+   example is near the others of its own style. The limit also stays below
+   the distance to the nearest example of another spell, so spells don't
+   set each other off. The spell's sensitivity then scales it.
+
+The "last move" reading at the top of the Record tab's camera view shows,
+after each movement, the nearest spell, how close the movement was and that
+spell's limit: it cast if the first number is below the second.
+
+## Tuning the recogniser
+
+`npm run tune` (`scripts/tune-recognizer.js`) replays every recorded
+example as if performed live (hold still, gesture, hold still) through the
+same live matcher, to a recogniser that has never seen that example, and
+counts:
+- correct casts (within 0.25 s of the gesture finishing)
+- late casts
+- wrong spells
+- misses
+- false alarms (a cast from the gesture played backwards).
+
+Starting from the current settings it changes one setting at a time, keeps
+whatever scores better, and prints the best settings to copy into
+`DEFAULT_SETTINGS` in `src/gestures/recognizer.js`. Run it again after
+recording new examples.
+
+The current settings came from that process on your recordings. Two things
+mattered most:
+- **Cutting live movement the same way examples are cut** (from moving to
+  settled), instead of sliding a fixed-length window over the camera feed.
+  That took Pinch-Coins from never casting to casting.
+- **Weighting the movement path above finger details.** Pinch and snap
+  both end with the thumb near the index finger, so finger details alone
+  confused them.
 
 ## Checking the maths
 
 `npm run check` tests, with no camera:
 
 - dynamic time warping on small cases worked out by hand
-- the recogniser on a synthetic hand
-- every spell against the others: each example is played
-  as a live stream to a recogniser that has all three spells but not that
-  example, so it has never seen it
+- recording trimming, and things that must never cast on a synthetic hand
+  (a still hand, a drifting hand, a wave, closing into a fist, a half pinch)
+- every spell's real recordings replayed live through the same matcher as
+  the app, each to a recogniser that has never seen it. Strict checks: no
+  example casts another spell, nothing played backwards casts, and at least
+  80% of examples cast their own spell. Misses are listed.
 - the sounds made by code.
 
 Current results:
@@ -385,20 +413,19 @@ Current results:
 | Test | Result |
 | --- | --- |
 | DTW on small hand-worked cases | exact |
-| Synthetic pinch recordings, trimmed from 2.5 s | to 0.37–0.40 s |
-| Synthetic live pinch | casts once, as it closes (distance 0.111, limit 0.536) |
-| Synthetic slower pinch | casts (0.159) |
-| Synthetic half pinch / closing into a fist | no cast (0.598 / 0.687) |
-| Still hand, drifting hand, waving | no cast (too little hand-shape movement) |
-| Synthetic pinch from a half-curled start | needs sensitivity ×1.3 (0.649): these three synthetic examples are very uniform, so their limit is tight |
-| Pinch-Coins, each real example unseen | all 5 cast Pinch-Coins only (0.57–0.79, limit 0.90) |
-| Snap-Brightness, each example unseen | all 5 cast Snap-Brightness only (0.19–0.52, limits 0.58–0.60) |
-| Push-Fireball, each example unseen | all 5 cast Push-Fireball only (0.25–0.76, limits 0.86–0.90) |
-| All 15, started from a different position (first third replaced by the middle pose) | all cast their own spell |
-| All 15, played backwards | none cast (1.04+ / 0.66+ / 1.10+) |
-| Light-Swell | 3.30 s, peak 0.8, ends in silence; holds while the light shines (loudness per 0.3 s 0.251 → 0.196 → 0.182 → 0.171 → 0.166 → 0.158 → 0.161), then fades (0.134 → 0.079 → 0.044 → 0.004) |
-| Spark-Chime | 1.80 s, peak 0.8, ends in silence; loudness per 0.3 s 0.239 → 0.208 → 0.118 → 0.055 → 0.022 → 0.004 |
-| Fire-Crackle | 2.00 s, peak 0.85, ends in silence; crackle peaks 6.9× the average level; loudest at 0.8–1.0 s (the burst), then dies away |
+| Synthetic pinch recordings, trimmed from 2.5 s | to 0.40 s |
+| Still hand, drifting hand, waving, half pinch, closing into a fist | no cast |
+| Real recordings, unseen: casting their own spell | 32 of 36 (89%): Pinch-Coins 4/6, Snap-Brightness 17/19, Push-Fireball 11/11 |
+| Real recordings: casting another spell | none |
+| Real recordings played backwards: casting anything | none |
+| Synthetic live pinch (slow, hand perfectly still) | reported only: too little movement to count as a gesture with settings tuned on real pinches |
+| Light-Swell | 3.30 s, peak 0.8, ends in silence; holds while the light shines, then fades |
+| Spark-Chime | 1.80 s, peak 0.8, ends in silence; loudness falls 0.239 → 0.004 over 0.3 s steps |
+| Fire-Crackle | 2.00 s, peak 0.85, ends in silence; crackle peaks 6.9× the average level; loudest at the burst, then dies away |
+
+The missed examples are Pinch-Coins 1 (a glitch in the recording: it is far
+from every other example), Pinch-Coins 3, and Snap-Brightness 5 and 13.
+Deleting or re-recording a glitched example helps.
 
 ## Packages
 

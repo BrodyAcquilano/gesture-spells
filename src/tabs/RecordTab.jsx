@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useData } from '../library/DataContext.js'
 import { formatDate } from '../library/formats.js'
@@ -38,7 +38,7 @@ export default function RecordTab({ live }) {
   const selected = selectedId === NEW ? null : recordings.find((r) => r.id === selectedId)
   const isNew = !selected
   const track = useTrack(selected?.id)
-  const chosen = spellIds ?? spells.filter((s) => s.gesture?.examples?.length).map((s) => s.id)
+  const chosen = useMemo(() => spellIds ?? spells.filter((s) => s.gesture?.examples?.length).map((s) => s.id), [spellIds, spells])
 
   const resolveCast = useCallback(
     (cast) => {

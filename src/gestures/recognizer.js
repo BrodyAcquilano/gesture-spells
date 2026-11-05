@@ -1,123 +1,197 @@
-// Recognises spells live by comparing the last moment of hand movement with
-// each spell's recorded examples. Nothing is trained: adding an example is
-// enough.
+// Recognises spells from live hand movement by comparing it with each spell's
+// recorded examples. Nothing is trained: adding an example is enough.
 //
-// Only the END of a gesture is compared (the last TAIL fraction of each
-// example), so the hand can start from any position: the recorded starting
-// pose is left out of the comparison. And "the end" means the moment the hand
-// arrives at its final pose (for a pinch, when the fingers touch), not the end
-// of the recording, so a spell casts at that moment instead of waiting for
-// the hand to hold still.
+// How a live gesture is found and matched:
+//   1. Watch how much the hand moves from frame to frame. When it has been
+//      clearly moving and then settles, a gesture has just been completed.
+//      That is the moment to cast, and where the animation should appear.
+//   2. Take the last few seconds of movement up to that moment and compare it
+//      with each recorded example. The example may line up with any later
+//      part of those seconds (the live stretch also holds whatever the hand
+//      did before), but both must end together. This is "subsequence"
+//      dynamic time warping: like DTW, but the start of the live movement is
+//      free.
+//   3. The spell of the closest example wins, if it is within that spell's
+//      limit.
 //
-// For each example of each spell:
-//   1. take the live frames covering the same stretch of time (× 1.25 slack)
-//   2. skip it if the hand moved much less than in that part of the example
-//   3. dynamic time warping distance between the two, plus a term for how
-//      far apart their final poses are
-// A spell's distance is its closest example. The spell fires when that
-// distance is under the spell's threshold. The threshold comes from two
-// things:
-//   - how much the spell's own examples differ from each other: if they agree
-//     closely, a live movement has to be close too
-//   - how close the nearest movement that must NOT cast it comes: the other
-//     spells' examples, and the spell's own examples played backwards (a
-//     pinch released instead of pressed). The threshold stays below
-//     MARGIN × that distance, so similar spells can't set each other off.
-import { dtw } from './dtw.js'
-import { arrivalTime, distance, prepareSequence } from './features.js'
+// A spell's limit comes from its own examples: how close each one is to its
+// nearest fellow example. A spell done in two styles (a small and a large
+// pinch) still gets a tight, honest limit, because each example is near the
+// others of its own style.
+//
+// Recorded examples are compared the same way: an example runs from when the
+// hand started moving to when it settled (see trim.js), so its end lines up
+// with the moment a live gesture is found.
+import { arrivalTime, distance, sequenceFeatures } from './features.js'
 
-export const TAIL = 0.6
+// Every number the recogniser uses, tuned against real recordings with
+// `npm run tune` (scripts/tune-recognizer.js).
+export const DEFAULT_SETTINGS = {
+  stepMs: 60, // movements are resampled to one step per this many ms
+  liveSeconds: 3, // how much live movement is compared, up to the moment it settles
+  endWeight: 2, // how much the final pose counts on top of DTW
+  limitQuantile: 0.9, // a spell's limit: this share of its examples' nearest-fellow distances…
+  limitSlack: 1.5, // …times this…
+  minThreshold: 0.2, // …but at least this
+  maxThreshold: 5, // …and at most this
+  margin: 1, // and below this × the distance to the nearest other spell (null: no such cap)
+  moveThreshold: 0.07, // hand movement per frame (palm lengths, five fastest points) that counts as moving
+  settleThreshold: 0.045, // …and as settled
+  features: { shapeWeight: 1, tipWeight: 2, pathWeight: 4, facingWeight: 0 },
+}
+
 const AFTER_ARRIVAL_MS = 50 // keep a frame or so past the arrival moment
-const WINDOW_SCALE = 1.25
-const MIN_WINDOW_FRAMES = 4
-const MOVEMENT_FRACTION = 0.5
-export const DEFAULT_THRESHOLD = 0.5 // used when a spell has only one example
-const THRESHOLD_MARGIN = 2.0
-const MIN_THRESHOLD = 0.3
-const MAX_THRESHOLD = 0.9
-const MARGIN = 0.65
-const END_WEIGHT = 0.3
+const MIN_STEPS = 3
+export const DEFAULT_THRESHOLD = 1 // used when a spell has only one example
 
-// The end part of a recorded example, up to its arrival moment, re-timed to
-// start at 0.
-function tailOf(example) {
-  const end = Math.min(example.duration, arrivalTime(example.frames, example.aspect) + AFTER_ARRIVAL_MS)
-  const from = end * (1 - TAIL)
-  let frames = example.frames.filter((frame) => frame.t >= from && frame.t <= end)
-  if (frames.length < MIN_WINDOW_FRAMES) frames = example.frames.slice(-MIN_WINDOW_FRAMES)
-  const start = frames[0].t
-  return { frames: frames.map((frame) => ({ ...frame, t: frame.t - start })), duration: frames[frames.length - 1].t - start }
-}
-
-// How different two movements are: the DTW distance, plus a little extra for
-// how far apart their final poses are. DTW averages over the whole movement,
-// so on its own a gesture that ends in the wrong pose (a snap undone instead
-// of done) can still score close; the end term makes the ending count.
-function score(a, b) {
-  return dtw(a, b) + END_WEIGHT * distance(a[a.length - 1], b[b.length - 1])
-}
-
-function autoThreshold(prepared) {
-  if (prepared.length < 2) return DEFAULT_THRESHOLD
-  let worst = 0
-  for (let i = 0; i < prepared.length; i++) {
-    for (let j = i + 1; j < prepared.length; j++) {
-      worst = Math.max(worst, score(prepared[i].vectors, prepared[j].vectors))
-    }
+// Resamples vectors taken at uneven times to one per stepMs, ending exactly
+// at the last time (so movements are aligned at their ends).
+function resampleByTime(times, vectors, stepMs) {
+  const end = times[times.length - 1]
+  const count = Math.max(MIN_STEPS, Math.floor((end - times[0]) / stepMs) + 1)
+  const out = []
+  let j = 0
+  for (let s = count - 1; s >= 0; s--) {
+    const t = end - s * stepMs
+    while (j < times.length - 2 && times[j + 1] < t) j++
+    const span = times[j + 1] - times[j]
+    const f = span > 0 ? Math.min(1, Math.max(0, (t - times[j]) / span)) : 0
+    const a = vectors[j]
+    const b = vectors[Math.min(j + 1, vectors.length - 1)]
+    out.push(a.map((value, d) => value + (b[d] - value) * f))
   }
-  return Math.min(MAX_THRESHOLD, Math.max(MIN_THRESHOLD, worst * THRESHOLD_MARGIN))
+  return out
 }
 
-function prepareExample(example) {
-  const tail = tailOf(example)
-  return { duration: Math.max(150, tail.duration), ...prepareSequence(tail.frames, example.aspect) }
+// Feature vectors for a stretch of frames, one per stepMs, ending at its
+// last frame. The path is measured from where the hand ends up.
+function vectorsOf(frames, aspect, settings) {
+  const vectors = sequenceFeatures(frames, aspect, settings.features, 'end')
+  return resampleByTime(
+    frames.map((frame) => frame.t),
+    vectors,
+    settings.stepMs,
+  )
 }
 
-// The same movement backwards in time.
-function reversedExample(example) {
-  const frames = [...example.frames].reverse().map((frame) => ({ ...frame, t: example.duration - frame.t }))
-  return { ...example, frames }
+// Subsequence DTW: the whole `example` against any ending part of `live`,
+// both ending together. Returns the average distance per example step, plus
+// the end term.
+function matchScore(example, live, endWeight) {
+  const m = example.length
+  const n = live.length
+  // previous[c]: best total cost of matching example[0..i] ending at live[c].
+  let previous = new Float64Array(n)
+  for (let c = 0; c < n; c++) previous[c] = distance(example[0], live[c]) // the example may start anywhere
+  for (let i = 1; i < m; i++) {
+    const current = new Float64Array(n).fill(Infinity)
+    for (let c = 0; c < n; c++) {
+      const d = distance(example[i], live[c])
+      let best = previous[c] // live waits
+      if (c > 0) best = Math.min(best, previous[c - 1], current[c - 1]) // both move on / example waits
+      current[c] = d + best
+    }
+    previous = current
+  }
+  return previous[n - 1] / m + endWeight * distance(example[m - 1], live[n - 1])
+}
+
+// The part of a recorded example up to when the hand arrives at its final pose.
+function examplePart(example) {
+  const end = Math.min(example.duration, arrivalTime(example.frames, example.aspect) + AFTER_ARRIVAL_MS)
+  return example.frames.filter((frame) => frame.t <= end)
 }
 
 // spells: those with gesture examples. sensitivity > 1 makes a spell easier
-// to trigger, < 1 stricter.
-export function buildRecognizer(spells) {
+// to trigger, < 1 stricter. overrides: any of DEFAULT_SETTINGS to change.
+export function buildRecognizer(spells, overrides = {}) {
+  const settings = { ...DEFAULT_SETTINGS, ...overrides, features: { ...DEFAULT_SETTINGS.features, ...overrides.features } }
   const withGestures = spells.filter((spell) => spell.gesture?.examples?.length)
-  const prepared = withGestures.map((spell) => spell.gesture.examples.map(prepareExample))
+  const prepared = withGestures.map((spell) => spell.gesture.examples.map((example) => vectorsOf(examplePart(example), example.aspect, settings)))
+
   const entries = withGestures.map((spell, s) => {
     const examples = prepared[s]
-    const negatives = [
-      ...spell.gesture.examples.map((example) => prepareExample(reversedExample(example))),
-      ...prepared.filter((_, other) => other !== s).flat(),
-    ]
-    let nearestNegative = Infinity
-    for (const example of examples) {
-      for (const negative of negatives) nearestNegative = Math.min(nearestNegative, score(example.vectors, negative.vectors))
+    let own = DEFAULT_THRESHOLD
+    if (examples.length >= 2) {
+      const nearestFellow = examples.map((a) => Math.min(...examples.filter((b) => b !== a).map((b) => matchScore(b, a, settings.endWeight))))
+      const sorted = [...nearestFellow].sort((a, b) => a - b)
+      const at = sorted[Math.min(sorted.length - 1, Math.floor(settings.limitQuantile * sorted.length))]
+      own = Math.min(settings.maxThreshold, Math.max(settings.minThreshold, at * settings.limitSlack))
     }
-    const base = Math.min(autoThreshold(examples), MARGIN * nearestNegative)
-    return { spell, examples, baseThreshold: base, nearestNegative, threshold: base * (spell.sensitivity ?? 1) }
+    let nearestOther = Infinity
+    if (settings.margin != null) {
+      const others = prepared.filter((_, o) => o !== s).flat()
+      for (const a of examples) for (const b of others) nearestOther = Math.min(nearestOther, matchScore(a, b, settings.endWeight))
+    }
+    const base = settings.margin == null ? own : Math.min(own, settings.margin * nearestOther)
+    return { spell, examples, threshold: base * (spell.sensitivity ?? 1) }
   })
 
-  // history: recent live frames { t, label, points }, oldest first.
-  // Returns { best: { spell, distance, threshold } | null, match: same | null }.
-  function classify(history, now, aspect) {
+  // Compares a stretch of live frames (ending when the hand settled) with
+  // every example. Returns { best: { spell, distance, threshold } | null,
+  // match: same | null }.
+  function classifySegment(frames, aspect) {
+    if (frames.length < 2 || !entries.length) return { best: null, match: null }
+    const live = vectorsOf(frames, aspect, settings)
     let best = null
     for (const entry of entries) {
       let closest = Infinity
-      for (const example of entry.examples) {
-        const window = history.filter((frame) => frame.t >= now - example.duration * WINDOW_SCALE)
-        if (window.length < MIN_WINDOW_FRAMES) continue
-        if (window[window.length - 1].t - window[0].t < example.duration * 0.7) continue
-        const live = prepareSequence(window, aspect)
-        if (live.movement < example.movement * MOVEMENT_FRACTION) continue
-        closest = Math.min(closest, score(live.vectors, example.vectors))
-      }
-      if (closest === Infinity) continue
-      const result = { spell: entry.spell, distance: closest, threshold: entry.threshold }
-      if (!best || closest / entry.threshold < best.distance / best.threshold) best = result
+      for (const example of entry.examples) closest = Math.min(closest, matchScore(example, live, settings.endWeight))
+      if (!best || closest < best.distance) best = { spell: entry.spell, distance: closest, threshold: entry.threshold }
     }
     return { best, match: best && best.distance < best.threshold ? best : null }
   }
 
-  return { entries, classify }
+  return { entries, settings, classifySegment }
+}
+
+// Follows a live hand frame by frame and reports when a gesture has been
+// completed. push(frame, aspect) returns { best, match } at the moment the
+// hand settles after moving, and null otherwise.
+//   frame: { t (ms), label, points }
+export function createLiveMatcher(recognizer) {
+  const { settings } = recognizer
+  let history = []
+  let recent = [] // the last few movement amounts, for smoothing
+  let moving = false
+
+  // How far the hand moved since the previous frame: the average of the five
+  // landmarks that moved most (so a pinch, where only two fingers move,
+  // counts as moving), in palm lengths per 1/30 s (so it doesn't depend on
+  // the frame rate).
+  function movementOf(a, b, aspect) {
+    const palm = Math.hypot((b.points[9][0] - b.points[0][0]) * aspect, b.points[9][1] - b.points[0][1]) || 1e-6
+    const moved = b.points.map((point, i) => Math.hypot((point[0] - a.points[i][0]) * aspect, point[1] - a.points[i][1]))
+    const top = moved.sort((x, y) => y - x).slice(0, 5)
+    return (top.reduce((sum, x) => sum + x, 0) / 5 / palm) * (33.3 / Math.max(1, b.t - a.t))
+  }
+
+  return {
+    push(frame, aspect) {
+      const previous = history[history.length - 1]
+      if (previous && frame.t - previous.t > 300) {
+        // The hand was lost for a moment: start afresh.
+        history = []
+        recent = []
+        moving = false
+      }
+      history.push(frame)
+      while (history.length && history[0].t < frame.t - settings.liveSeconds * 1000) history.shift()
+      if (!previous || history.length < 2) return null
+      recent.push(movementOf(previous, frame, aspect))
+      if (recent.length > 3) recent.shift()
+      const amount = recent.reduce((a, b) => a + b, 0) / recent.length
+      if (amount > settings.moveThreshold) moving = true
+      else if (moving && amount < settings.settleThreshold) {
+        moving = false
+        return recognizer.classifySegment(history.slice(), aspect)
+      }
+      return null
+    },
+    reset() {
+      history = []
+      recent = []
+      moving = false
+    },
+  }
 }

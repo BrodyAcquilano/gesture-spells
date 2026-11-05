@@ -1,42 +1,65 @@
 // Turns a recorded or live hand movement into numbers that can be compared.
 //
 // A movement is a list of frames { t (ms), label ('Left'|'Right'), points }.
-// Each frame becomes one feature vector of 46 numbers:
+// Each frame becomes one feature vector of 47 numbers:
 //
 //   40  hand shape: landmarks 1–20 relative to the wrist, divided by the palm
 //       length (wrist to the base of the middle finger). This ignores where the
 //       hand is and how far it is from the camera.
-//    4  thumb tip to each fingertip, divided by palm length, weighted ×3.
-//       These capture pinches and other finger contacts strongly.
+//    4  thumb tip to each fingertip, divided by palm length. These capture
+//       pinches and other finger contacts strongly.
 //    2  path: where the hand is relative to its average position during the
-//       movement, in palm lengths, weighted ×0.5. This captures drawing in
-//       the air, swipes and pushes.
+//       movement, in palm lengths. This captures drawing in the air, swipes
+//       and pushes.
+//    1  facing: which way the hand faces, palm or back towards the camera.
+//       Seen from the front, the index knuckle is on one side of the line
+//       from the wrist to the little-finger knuckle; turned over, it is on
+//       the other. The signed area of that triangle (the "cross product"),
+//       divided by the palm length squared, goes from about +0.5 to −0.5 as
+//       the hand turns over. A snap done with the palm towards yourself
+//       turns the hand over; a pinch doesn't.
+// Each group is multiplied by a weight (DEFAULT_FEATURES below; the
+// recogniser passes its own tuned weights).
 //
 // Left hand shapes are mirrored to look like right hands, so a gesture
 // recorded with one hand is recognised with either.
 import { FINGERTIPS, MIDDLE_BASE, THUMB_TIP, WRIST } from '../tracking/landmarks.js'
 
-export const FEATURE_SIZE = 46
-const TIP_WEIGHT = 3
-const PATH_WEIGHT = 0.5
+const INDEX_BASE = 5
+const PINKY_BASE = 17
+
 export const RESAMPLE_STEPS = 24
 
-function frameFeatures(points, aspect, label) {
+// How much each kind of number counts when two movements are compared.
+//   shapeWeight  the hand shape (landmarks relative to the wrist)
+//   tipWeight    thumb-to-fingertip distances
+//   pathWeight   where the hand moves
+// The recogniser's tuned values are in recognizer.js (DEFAULT_SETTINGS).
+export const DEFAULT_FEATURES = { shapeWeight: 1, tipWeight: 3, pathWeight: 0.5, facingWeight: 0 }
+
+function frameFeatures(points, aspect, label, weights) {
+  const { shapeWeight, tipWeight } = weights
   // x is a fraction of the width and y of the height; multiplying x by the
   // aspect ratio puts both in the same unit before measuring distances.
   const flip = label === 'Left' ? -1 : 1
   const px = (i) => points[i][0] * aspect
   const py = (i) => points[i][1]
   const palm = Math.hypot(px(MIDDLE_BASE) - px(WRIST), py(MIDDLE_BASE) - py(WRIST)) || 1e-6
-  const vector = new Float64Array(FEATURE_SIZE)
+  const vector = new Float64Array(47)
   let k = 0
   for (let i = 1; i < 21; i++) {
-    vector[k++] = ((px(i) - px(WRIST)) / palm) * flip
-    vector[k++] = (py(i) - py(WRIST)) / palm
+    vector[k++] = ((px(i) - px(WRIST)) / palm) * flip * shapeWeight
+    vector[k++] = ((py(i) - py(WRIST)) / palm) * shapeWeight
   }
   for (const tip of FINGERTIPS) {
-    vector[k++] = (Math.hypot(px(tip) - px(THUMB_TIP), py(tip) - py(THUMB_TIP)) / palm) * TIP_WEIGHT
+    vector[k++] = (Math.hypot(px(tip) - px(THUMB_TIP), py(tip) - py(THUMB_TIP)) / palm) * tipWeight
   }
+  // Facing: signed area of wrist → index knuckle → little-finger knuckle.
+  const ax = px(INDEX_BASE) - px(WRIST)
+  const ay = py(INDEX_BASE) - py(WRIST)
+  const bx = px(PINKY_BASE) - px(WRIST)
+  const by = py(PINKY_BASE) - py(WRIST)
+  vector[46] = ((ax * by - ay * bx) / (palm * palm)) * flip * (weights.facingWeight ?? 0)
   // Filled in by sequenceFeatures, which knows the whole movement.
   // The path is not mirrored: a swipe to the right stays a swipe to the right.
   return { vector, palm, x: px(MIDDLE_BASE), y: py(MIDDLE_BASE) }
@@ -44,15 +67,17 @@ function frameFeatures(points, aspect, label) {
 
 // Feature vectors for every frame, lightly smoothed over time to calm the
 // tracker's frame-to-frame jitter.
-export function sequenceFeatures(frames, aspect) {
-  const rows = frames.map((frame) => frameFeatures(frame.points, aspect, frame.label))
+// pathFrom: 'mean' measures the path from the hand's average position; 'end'
+// from where it ends up (the recogniser compares movements that end together).
+export function sequenceFeatures(frames, aspect, weights = DEFAULT_FEATURES, pathFrom = 'mean') {
+  const rows = frames.map((frame) => frameFeatures(frame.points, aspect, frame.label, weights))
   const n = rows.length
   const meanPalm = rows.reduce((sum, row) => sum + row.palm, 0) / n
-  const meanX = rows.reduce((sum, row) => sum + row.x, 0) / n
-  const meanY = rows.reduce((sum, row) => sum + row.y, 0) / n
+  const originX = pathFrom === 'end' ? rows[n - 1].x : rows.reduce((sum, row) => sum + row.x, 0) / n
+  const originY = pathFrom === 'end' ? rows[n - 1].y : rows.reduce((sum, row) => sum + row.y, 0) / n
   for (const row of rows) {
-    row.vector[44] = ((row.x - meanX) / meanPalm) * PATH_WEIGHT
-    row.vector[45] = ((row.y - meanY) / meanPalm) * PATH_WEIGHT
+    row.vector[44] = ((row.x - originX) / meanPalm) * weights.pathWeight
+    row.vector[45] = ((row.y - originY) / meanPalm) * weights.pathWeight
   }
   return rows.map((row, i) => {
     const before = rows[Math.max(0, i - 1)].vector
@@ -96,10 +121,10 @@ export function movementOf(vectors) {
 }
 
 // Everything the recogniser needs from one movement.
-export function prepareSequence(frames, aspect) {
+export function prepareSequence(frames, aspect, weights = DEFAULT_FEATURES) {
   const vectors = resample(
     frames.map((frame) => frame.t),
-    sequenceFeatures(frames, aspect),
+    sequenceFeatures(frames, aspect, weights),
   )
   return { vectors, movement: movementOf(vectors) }
 }

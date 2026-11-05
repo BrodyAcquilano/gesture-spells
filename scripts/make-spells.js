@@ -1,5 +1,8 @@
-// Generates the built-in Snap-Brightness and Push-Fireball spells, five example
-// recordings each, without a camera. Run with `npm run make-spells`.
+// Creates the Push-Fireball spell with five generated example recordings,
+// without a camera, if its file doesn't exist. Existing spells are never
+// touched. Run with `npm run make-spells`.
+// (The snap is no longer generated: a real snap is done with the palm towards
+// yourself and turns the hand over, which is best recorded for real.)
 //
 // The hand is not invented from scratch: it is the real hand from the first
 // frame of the Pinch coins recordings (public/library/spells/pinch-coins.json),
@@ -99,18 +102,6 @@ const smoothstep = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x))
 
 // --- the gestures ----------------------------------------------------------
 
-function snapPoses() {
-  // Before: thumb pressed against the middle fingertip, ring and little
-  // fingers folded. After: the middle finger has snapped down into the palm,
-  // the thumb has slid forward along the index finger, and the index finger
-  // points up, where the light appears.
-  const middleHalf = curledFinger(FINGERS.middle).map((c, k) => lerp(OPEN[FINGERS.middle[k]], c, 0.5))
-  const before = pose({ curl: { index: 0.25, middle: 0.5, ring: 0.85, pinky: 0.85 }, thumbTip: middleHalf[3] })
-  const indexBent = curledFinger(FINGERS.index).map((c, k) => lerp(OPEN[FINGERS.index[k]], c, 0.15))
-  const after = pose({ curl: { index: 0.1, middle: 1, ring: 0.85, pinky: 0.85 }, thumbTip: lerp(OPEN[5], indexBent[1], 0.5) })
-  return { before, after, moveMs: () => between(70, 130), grow: 1, jolt: 0.012 }
-}
-
 function fireballPoses() {
   // Before: a fist with the thumb folded across the fingers. After: the hand
   // flung open, fingers spread, and pushed towards the camera (it grows).
@@ -166,20 +157,6 @@ function makeExamples(gesture, count = 5) {
 
 const spells = [
   {
-    file: 'snap-brightness.json',
-    spell: {
-      id: 'builtin:snap-brightness',
-      name: 'Snap-Brightness',
-      description:
-        'Snap your middle finger against your thumb: a point of light flares at your index fingertip and shines for a few seconds. The five examples were generated from a real hand shape, not recorded.',
-      animationId: 'builtin:illumination',
-      audioId: 'builtin:light-swell',
-      sensitivity: 1,
-      createdAt: MADE_AT,
-      gesture: { examples: makeExamples(snapPoses()) },
-    },
-  },
-  {
     file: 'push-fireball.json',
     spell: {
       id: 'builtin:push-fireball',
@@ -195,24 +172,27 @@ const spells = [
   },
 ]
 
-// Spells are editable in the app, so if a spell's file already exists only
-// its gesture examples are replaced: its name, description, animation, audio
-// and sensitivity stay as they were edited. A spell deleted in the app is
-// made again (and listed again) by running this.
+// Spells are edited and re-recorded in the app, so a spell whose file
+// already exists is left exactly as it is, recorded examples and all. This
+// only creates a missing one (for example after deleting it, to get a
+// starting point back).
 const indexUrl = new URL('index.json', spellsDir)
 const index = JSON.parse(readFileSync(indexUrl, 'utf8'))
 for (const { file, spell } of spells) {
   const url = new URL(file, spellsDir)
-  let existing = null
+  let exists = true
   try {
-    existing = JSON.parse(readFileSync(url, 'utf8'))
+    readFileSync(url)
   } catch {
-    // not there yet
+    exists = false
   }
-  const saved = existing ? { ...existing, gesture: spell.gesture } : spell
-  writeFileSync(url, JSON.stringify(saved) + '\n')
+  if (exists) {
+    console.log(`${file}: already exists, left as it is`)
+  } else {
+    writeFileSync(url, JSON.stringify(spell) + '\n')
+    console.log(`${file}: created with ${spell.gesture.examples.length} generated examples`)
+  }
   if (!index.includes(file)) index.push(file)
-  console.log(`${file}: ${spell.gesture.examples.map((e) => `${e.duration} ms`).join(', ')}${existing ? ' (kept its edited details)' : ''}`)
 }
 writeFileSync(indexUrl, JSON.stringify(index, null, 2) + '\n')
 console.log('Updated public/library/spells/index.json')
