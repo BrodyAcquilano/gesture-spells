@@ -19,3 +19,10 @@ folder's `index.json`:
 ```
 
 `id` must be unique and must not change, because spells refer to files by id.
+
+## Spells
+
+`spells/` holds packaged spells, one JSON file each, listed in
+`spells/index.json`. A spell file has `id`, `name`, `description`,
+`animationId`, `audioId`, `sensitivity` and `gesture.examples` (the recorded
+hand landmarks). They appear in the Spellbook as read-only built-in spells.

@@ -37,77 +37,26 @@ either goes missing.
 The port is fixed at 5173 on purpose. The browser keeps saved data per address,
 so the app on another port would show an empty library.
 
-## Quick start: your first spell (a pinch)
+## Quick start: cast the Pinch spark
 
-1. **Spellbook → Spellbook tab.** Press the green **+** to make a spell and
-   type a name, for example "Spark".
-2. Record 3 to 5 examples of a pinch, following
-   [Recording a gesture](#recording-a-gesture) below.
-3. In the details below the viewer, choose **Sparks ✨** as the animation
-   and **Spark chime** as the audio. The viewer now replays your recorded
-   pinch with the sparks where it ends, and the chime has its own player.
-4. **Record tab.** Press **Start camera** and pinch. The spell's name
-   flashes, sparks burst from your fingers and the chime plays.
+The app comes with one spell ready to use: **Pinch spark**. Its gesture was
+recorded from five real pinches, and it already has the **Sparks ✨**
+animation and the **Spark chime** sound.
 
-## Recording a gesture
+1. **Spellbook → Spellbook tab.** Select **Pinch spark** and press **Play**
+   to see the recorded pinch, then the sparks and chime together.
+2. **Record tab.** Press **Start camera**, hold your hand open toward the
+   camera, then press your thumb and index fingertip together and hold. The
+   spell's name flashes, sparks burst from your fingers and the chime plays.
 
-A gesture is recorded as hand positions only: 21 points per hand per frame.
-No video or picture of you is kept (see "Where things are saved").
+Either hand works. If it never casts, or casts by accident, press **Make a
+copy** on the spell and change the copy's **Sensitivity** (higher casts more
+easily). The **closest** reading at the top of the Record view shows how near
+your movement is to a spell: it casts when the first number drops below the
+second.
 
-### Steps
-
-1. In **Spellbook → Spellbook**, select the spell and press **Record gesture**
-   (or **Add examples** if it already has some). The viewer turns into the
-   camera.
-2. Press **Start camera** and allow the camera if Edge asks. A cyan skeleton
-   should appear over your hand. If it doesn't, move your hand fully into
-   view.
-3. Press **Record example**. A 3-second countdown starts.
-4. During the countdown, **hold still** in the gesture's starting position.
-5. At **GO**, do the gesture **once**. The skeleton turns gold and a gold bar
-   fills along the bottom (2.5 seconds).
-6. When the bar finishes, the recording is cut down to the part where your
-   hand moved and saved as one example. A message shows how long the movement
-   was, or what went wrong.
-7. Press **Record another** until you have 3 to 5 examples, then **Done**.
-
-### For a pinch
-
-- Sit about an arm's length from the camera, in good light, with your whole
-  hand in view and your palm facing the camera.
-- Start with your hand **open**, fingers relaxed and slightly apart.
-- At GO, bring your **thumb tip and index fingertip firmly together**,
-  quickly, so they clearly touch.
-- **Keep holding the pinch** until the gold bar finishes. Don't open your
-  hand again. The spell casts the moment the pinch closes, so the recording
-  should end closed.
-- Use the hand you will cast with. Either hand works, because left hands are
-  mirrored to match right hands.
-
-### Tips for any gesture
-
-- **Start and end still.** The recorder finds the gesture by looking for
-  where your hand leaves its starting pose and settles into its final one.
-- **Vary the examples a little**: one a bit faster, one slower, one nearer
-  the camera, one further. The spell's limit for casting comes from how much
-  your examples differ, so a little variety makes it forgiving enough for
-  real use. Wildly different examples make it accept almost anything.
-- **Keep the whole hand in view.** If the hand is lost for much of the
-  recording, it is rejected.
-- **"No movement was seen"** means the hand barely moved. Make the gesture
-  bigger or clearer.
-- A bad example can't be deleted on its own yet. Use **Clear** and record
-  the set again.
-
-### Tuning
-
-After recording, try the spell in the **Record** tab. The **closest** reading
-at the top shows how near your movement is to a spell, as two numbers. It
-casts when the first drops below the second.
-
-- **Never casts:** raise the spell's **Sensitivity** in the Spellbook
-  details, or record more examples.
-- **Casts by accident:** lower the sensitivity.
+To make your own spell, press the green **+** in the Spellbook and then
+**Record gesture**. The recorder shows its instructions on screen.
 
 ## Layout
 
@@ -138,25 +87,28 @@ Build spells first, then record video while the app recognises them.
 The viewer is an audio player. Built in: **Spark chime**, a 1.8-second
 magical chime that fades out with the sparks.
 
-**Spellbook.** Your spells. A spell joins three separate things: a gesture
-you record, an animation and an audio file from the library.
-- List: your spells, with how many gesture examples each has. The green +
-  makes a new spell.
-- Viewer: whatever the spell has so far.
-  - Gesture: your recorded examples replay as a moving hand skeleton, one
-    after another.
-  - Animation: plays where the gesture ends, as it will when cast live. With
-    no gesture, the animation plays on its own.
-  - Audio: an audio player underneath.
-  - Markers along the top show which of gesture, animation and audio are set.
+**Spellbook.** Spells. A spell joins three separate things: a recorded
+gesture, an animation and an audio file from the library.
+- List: built-in spells first (Pinch spark), then your own. The green + makes
+  a new spell.
+- Viewer: one **Play / Pause** button plays the whole spell:
+  - the recorded gesture, as a moving hand skeleton
+  - then, at the moment it would cast, the animation and the audio together.
+
+  Nothing is cut short: playback lasts until the longest part has finished.
+  Pause freezes all of them. Each play uses the next recorded example. Parts
+  the spell doesn't have are skipped. Markers along the top show which parts
+  are set.
 - Details:
   - name and description
   - **Record gesture / Add examples**, and **Clear**
   - sensitivity
   - the animation and audio pickers
   - when it was made and recorded
-- Recording a gesture turns the viewer into the camera (see the quick start).
-  Each recording is trimmed to the part where your hand moved.
+  - **Make a copy**
+- Built-in spells can't be edited. Make a copy to change one.
+- Recording a gesture turns the viewer into the camera. Each recording is
+  trimmed to the part where your hand moved.
 
 **Record.** Live casting. Start the camera and do a spell's gesture. When it is
 recognised, the spell's name flashes, its animation appears at your hand and
@@ -211,13 +163,18 @@ Accepted formats are ones Edge and Chrome can play without extra software:
 
 ## Where things are saved
 
-Spells (with their recorded gestures) and uploaded files are saved in the
+Built-in spells are files in `public/library/spells/` (listed in its
+`index.json`), so they are part of the project and its git history. A
+recorded gesture is hand positions only (21 points per hand per frame), not
+video.
+
+Your own spells (with their recorded gestures) and uploaded files are saved in the
 browser's IndexedDB database for this site. They are still there next time
 the app is opened, in the same browser at the same address. The app asks the
 browser to keep the data even when disk space runs low. An export/import
 backup file is planned.
 
-None of this is in the project folder, so recorded gestures and uploads never
+None of that is in the project folder, so your own spells and uploads never
 end up in git. `.gitignore` also excludes video files saved into the project
 (`recordings/`, `exports/`, and `.webm`, `.mp4`, `.mov` and `.mkv` files),
 except built-in animations in `public/library/`.
@@ -255,8 +212,9 @@ except built-in animations in `public/library/`.
 
 ## Checking the maths
 
-`npm run check` tests the recogniser on synthetic hands (no camera) and the
-spark chime. Current results:
+`npm run check` tests the recogniser on synthetic hands, on the real
+recordings in the Pinch spark spell (no camera needed), and the spark chime.
+Current results:
 
 | Test | Result |
 | --- | --- |
@@ -268,10 +226,12 @@ spark chime. Current results:
 | Half pinch, fingers stop apart | no cast (0.411) |
 | Closing into a fist | no cast (0.604) |
 | Still hand, drifting hand, waving | no cast (too little hand-shape movement) |
+| Real pinches: each one replayed to a recogniser built from the other four | all 5 cast (0.43–0.54, limit 0.60) |
+| Real pinches played backwards (releasing) | none cast (1.18 or more) |
 | Spark chime | 1.80 s, peak 0.8, ends in silence, loudness falls 0.215 → 0.007 after the bells peak |
 
-Synthetic hands are tidier than real ones, so real-camera thresholds may need
-the sensitivity slider.
+Real hands vary more than synthetic ones, which is why the real pinches sit
+closer to their limit. The sensitivity slider adjusts that limit per spell.
 
 ## Packages
 
@@ -294,13 +254,13 @@ src/
   modes/               each mode and its list of tabs
   tabs/                the tab screens (library, spellbook, record, finalize, edit)
   components/          header, tab bar, list/viewer/details layout, previews,
-                       GestureRecorder, GesturePlayback, LiveCaster
+                       GestureRecorder, SpellPlayback, LiveCaster
   tracking/            MediaPipe wrapper, camera loop hook, landmark helpers, skeleton drawing
   gestures/            features, DTW, trimming, the recogniser
   effects/             sparks particles, spark chime synthesis, WAV encoder, effect player
   library/             shared data (library files, spells), accepted formats, built-ins
   storage/db.js        small IndexedDB wrapper
-public/library/        built-in animation and audio files
+public/library/        built-in animation and audio files, and packaged spells
 scripts/               MediaPipe setup, maths checks
 ```
 

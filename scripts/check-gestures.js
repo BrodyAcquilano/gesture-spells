@@ -147,6 +147,54 @@ for (const [name, at] of Object.entries(negatives)) {
   check(`no cast: ${name}`, result.casts.length === 0, `closest ${Number.isFinite(result.closest) ? result.closest.toFixed(3) : 'skipped (too little movement)'}`)
 }
 
+// ---------- the packaged Pinch spark spell (real recordings) ----------
+// Each recorded example is played back as a live stream (held still before
+// and after) to a recogniser built from the *other* examples, so it has never
+// seen it. It should cast. The same movement played backwards (releasing a
+// pinch) should not.
+const { readFileSync } = await import('node:fs')
+const packaged = JSON.parse(readFileSync(new URL('../public/library/spells/pinch-spark.json', import.meta.url), 'utf8'))
+const realExamples = packaged.gesture.examples
+function stream(frames, aspect) {
+  const step = 1000 / 30
+  const out = []
+  let t = 0
+  for (let i = 0; i < 30; i++) out.push({ ...frames[0], t: (t += step) })
+  const start = t
+  for (const frame of frames) out.push({ ...frame, t: start + frame.t })
+  t = out[out.length - 1].t
+  for (let i = 0; i < 30; i++) out.push({ ...frames[frames.length - 1], t: (t += step) })
+  return { frames: out, aspect }
+}
+function runWith(rec, { frames, aspect }) {
+  const history = []
+  let casts = 0
+  let closest = Infinity
+  let cooldown = 0
+  frames.forEach((frame, i) => {
+    history.push(frame)
+    if (i % 2 || frame.t < cooldown) return
+    const { best, match } = rec.classify(history, frame.t, aspect)
+    if (best) closest = Math.min(closest, best.distance)
+    if (match) {
+      casts++
+      cooldown = frame.t + 1000
+      history.length = 0
+    }
+  })
+  return { casts, closest }
+}
+realExamples.forEach((example, k) => {
+  const others = realExamples.filter((_, j) => j !== k)
+  const rec = buildRecognizer([{ ...packaged, gesture: { examples: others } }])
+  const threshold = rec.entries[0].threshold
+  const forward = runWith(rec, stream(example.frames, example.aspect))
+  const reversed = [...example.frames].reverse().map((frame, i) => ({ ...frame, t: example.frames[i].t }))
+  const backward = runWith(rec, stream(reversed, example.aspect))
+  check(`real pinch ${k + 1} casts (unseen)`, forward.casts === 1, `closest ${forward.closest.toFixed(3)} / limit ${threshold.toFixed(3)}`)
+  check(`real pinch ${k + 1} released (reversed) does not cast`, backward.casts === 0, `closest ${Number.isFinite(backward.closest) ? backward.closest.toFixed(3) : 'skipped'}`)
+})
+
 // ---------- spark chime ----------
 const { synthesiseSparkChime, renderSparkChime, CHIME_SECONDS, SAMPLE_RATE } = await import('../src/effects/sparkSound.js')
 const chime = synthesiseSparkChime()

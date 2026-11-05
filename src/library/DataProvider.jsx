@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getAll, put, remove, requestPersistentStorage } from '../storage/db.js'
-import { PROCEDURAL, loadFileManifest } from './builtins.js'
+import { PROCEDURAL, loadBuiltInSpells, loadFileManifest } from './builtins.js'
 import { isAccepted } from './formats.js'
 import { DataContext } from './DataContext.js'
 
@@ -27,7 +27,8 @@ function withoutRuntimeFields(item) {
 
 export default function DataProvider({ children }) {
   const [library, setLibrary] = useState({ animations: proceduralEntries('animations'), audio: proceduralEntries('audio') })
-  const [spells, setSpells] = useState([])
+  const [spells, setSpells] = useState([]) // your own spells
+  const [builtInSpells, setBuiltInSpells] = useState([])
   const [takes, setTakes] = useState([])
   const [loaded, setLoaded] = useState(false)
   const [loadError, setLoadError] = useState('')
@@ -107,6 +108,10 @@ export default function DataProvider({ children }) {
     }
 
     renderProcedural()
+    // Packaged spells come from the app itself, so they need not wait for the database.
+    loadBuiltInSpells().then((packaged) => {
+      if (!cancelled) setBuiltInSpells(packaged)
+    })
     load().catch((error) => {
       console.error(error)
       if (!cancelled) setLoadError(`Could not open the saved library: ${error.message}`)
@@ -168,17 +173,21 @@ export default function DataProvider({ children }) {
     [dropUrl],
   )
 
-  const createSpell = useCallback(async () => {
+  // template: an optional spell to copy, such as a built-in one.
+  const createSpell = useCallback(async (template = null) => {
     const spell = {
-      id: crypto.randomUUID(),
       name: 'New spell',
       description: '',
-      createdAt: Date.now(),
       gesture: null, // { examples: [{ recordedAt, aspect, duration, frames }] }
       animationId: null,
       audioId: null,
       sensitivity: 1,
+      ...template,
+      id: crypto.randomUUID(),
+      createdAt: Date.now(),
     }
+    delete spell.builtIn
+    if (template) spell.name = `${template.name} (copy)`
     await put('spells', spell)
     replaceSpells([...spellsRef.current, spell])
     return spell
@@ -209,7 +218,7 @@ export default function DataProvider({ children }) {
       loaded,
       loadError,
       library,
-      spells,
+      spells: [...builtInSpells, ...spells],
       takes,
       findFile: (kind, id) => (id ? library[kind].find((item) => item.id === id) : undefined),
       addFiles,
@@ -219,7 +228,7 @@ export default function DataProvider({ children }) {
       updateSpell,
       removeSpell,
     }),
-    [loaded, loadError, library, spells, takes, addFiles, updateFile, removeFile, createSpell, updateSpell, removeSpell],
+    [loaded, loadError, library, spells, builtInSpells, takes, addFiles, updateFile, removeFile, createSpell, updateSpell, removeSpell],
   )
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>

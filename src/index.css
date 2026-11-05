@@ -485,7 +485,7 @@ textarea:focus,
 
 .stage {
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto 1fr;
   width: 100%;
   min-height: 0;
 }
@@ -726,4 +726,23 @@ input[type='range'] {
 }
 .audio-preview.compact .audio-icon {
   font-size: 1.6rem;
+}
+
+/* ---------- spell playback ---------- */
+
+.playback {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-height: 0;
+}
+.playback-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+}
+.play-button {
+  min-width: 120px;
+  font-size: 1rem;
 }
