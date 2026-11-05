@@ -4,7 +4,7 @@
 //     a still hand, a drifting hand, a wave, a fist and a half pinch never cast
 //   - the spells' examples, replayed live and unseen: no wrong spell,
 //     nothing cast when played backwards, and at least 80% cast
-//   - the spark chime, fire crackle and light swell: length, level, fade to silence
+//   - the spark chime, fire crackle, light swell and clock tick: length, level, fade to silence
 // Run with `npm run check`.
 import { dtw } from '../src/gestures/dtw.js'
 import { buildRecognizer, createLiveMatcher } from '../src/gestures/recognizer.js'
@@ -312,6 +312,35 @@ check(
 )
 const lightWav = await renderLightSwell()
 check('light swell WAV has header + 16-bit stereo samples', lightWav.blob.size === 44 + lightLength * 4, `${lightWav.blob.size} bytes`)
+
+// ---------- clock tick ----------
+const { synthesiseClockTick, renderClockTick, CLOCK_SECONDS } = await import('../src/effects/clockSound.js')
+const clock = synthesiseClockTick()
+const clockLength = clock.left.length
+check('clock tick is 4.2 s long', clockLength === Math.ceil(CLOCK_SECONDS * SAMPLE_RATE), `${(clockLength / SAMPLE_RATE).toFixed(2)} s`)
+let clockPeak = 0
+for (let i = 0; i < clockLength; i++) clockPeak = Math.max(clockPeak, Math.abs(clock.left[i]), Math.abs(clock.right[i]))
+check('clock tick peak is 0.8 (no clipping)', Math.abs(clockPeak - 0.8) < 1e-3, clockPeak.toFixed(3))
+check('clock tick ends in silence', clock.left[clockLength - 1] === 0 && clock.right[clockLength - 1] === 0)
+const gaps = clock.ticks.slice(1).map((t, i) => t - clock.ticks[i])
+check(
+  'clock ticks slow down (each gap longer than the last)',
+  gaps.every((g, i) => i === 0 || g > gaps[i - 1]) && gaps[0] < 0.1 && gaps[gaps.length - 1] > 0.4,
+  `${clock.ticks.length} ticks, gaps ${gaps[0].toFixed(2)} → ${gaps[gaps.length - 1].toFixed(2)} s`,
+)
+// Each tick should be heard: the 10 ms after it louder than the 10 ms before.
+const level = (from, to) => {
+  let sum = 0
+  for (let i = Math.max(0, from); i < to; i++) sum += clock.left[i] ** 2 + clock.right[i] ** 2
+  return Math.sqrt(sum / Math.max(1, 2 * (to - from)))
+}
+const ratios = clock.ticks.slice(1).map((t) => {
+  const at = Math.round(t * SAMPLE_RATE)
+  return level(at, at + 441) / Math.max(1e-9, level(at - 441, at - 20))
+})
+check('every tick stands out', ratios.every((r) => r > 2), `quietest tick ${Math.min(...ratios).toFixed(1)}× the moment before it`)
+const clockWav = await renderClockTick()
+check('clock tick WAV has header + 16-bit stereo samples', clockWav.blob.size === 44 + clockLength * 4, `${clockWav.blob.size} bytes`)
 
 console.log(failures ? `\n${failures} check(s) failed` : '\nAll checks passed')
 process.exit(failures ? 1 : 0)

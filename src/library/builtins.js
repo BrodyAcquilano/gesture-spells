@@ -10,12 +10,14 @@
 import { renderSparkChime } from '../effects/sparkSound.js'
 import { renderFireCrackle } from '../effects/fireSound.js'
 import { renderLightSwell } from '../effects/lightSound.js'
+import { renderClockTick } from '../effects/clockSound.js'
 
 // The code behind each sound's `procedural` name.
 export const PROCEDURAL_SOUNDS = {
   'spark-chime': renderSparkChime,
   'light-swell': renderLightSwell,
   'fire-crackle': renderFireCrackle,
+  'clock-tick': renderClockTick,
 }
 
 export const libraryBase = (kind) => `${import.meta.env.BASE_URL}library/${kind}/`

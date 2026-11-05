@@ -30,7 +30,7 @@ export default function ProceduralPreview({ name }) {
         wait += dt
         if (wait > PAUSE || !instance) {
           wait = 0
-          const y = animation.anchor === 'palm' ? h * 0.7 : h / 2
+          const y = animation.anchor === 'palm' ? h * 0.7 : animation.anchor === 'middleTip' ? h * 0.68 : h / 2
           instance = animation.create(w / 2, y, h, w)
         }
       }

@@ -16,5 +16,11 @@
     "name": "Fireball",
     "procedural": "fireball",
     "description": "A ball of fire forms at the palm and rushes towards the camera, growing as it comes, then bursts into flames and embers (about 2 s). Red, orange and yellow light drawn by code (src/effects/fireball.js)."
+  },
+  {
+    "id": "builtin:clock",
+    "name": "Clock",
+    "procedural": "clock",
+    "description": "A gothic clock face with Roman numerals and ornate brass hands appears above the middle fingertip. The hands spin fast, then slow down tick by tick until they stop, with time-bending ripples, and it fades out (about 4.4 s). Drawn by code (src/effects/clock.js)."
   }
 ]

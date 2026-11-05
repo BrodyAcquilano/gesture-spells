@@ -4,7 +4,7 @@
 //                                       file is missing; never touches an
 //                                       existing spell
 //   npm run make-spells -- --regenerate replaces the gesture examples of all
-//                                       three with freshly generated ones
+//                                       four with freshly generated ones
 //                                       (their name, animation, audio and
 //                                       sensitivity stay as edited)
 //
@@ -183,6 +183,25 @@ function fireballGesture({ ms, grow }) {
   return { keys: [{ at: 0, pose: before }, { at: ms, pose: after }], jolt: 0, grow, travel: [between(-0.15, 0.15), between(-0.25, 0)] }
 }
 
+// Finger-Slowdown: the middle finger raised on its own. From a fist (or a
+// loosely curled hand), the middle finger straightens up while the others
+// stay curled and the thumb folds over them; the hand lifts a little.
+function middleFingerGesture({ ms, fromFist }) {
+  const fistCurl = { index: 1, middle: 1, ring: 1, pinky: 1 }
+  const fist = pose({ curl: fistCurl })
+  const thumbOver = lerp(fist[6], fist[14], between(0.3, 0.5))
+  const before = fromFist
+    ? pose({ curl: fistCurl, thumbTip: scale(add(fist[6], fist[10]), 0.5) })
+    : pose({ curl: { index: 0.4, middle: 0.35, ring: 0.5, pinky: 0.55 }, thumbTip: lerp(OPEN[4], thumbOver, 0.4) })
+  const after = pose({ curl: { index: 0.95, middle: between(0, 0.08), ring: 0.95, pinky: 0.95 }, thumbTip: thumbOver })
+  return {
+    keys: [{ at: 0, pose: before }, { at: ms, pose: after }],
+    jolt: 0.03,
+    grow: between(1, 1.08),
+    travel: [between(-0.05, 0.05), between(-0.25, -0.05)],
+  }
+}
+
 function poseAt(keys, t) {
   if (t <= keys[0].at) return keys[0].pose
   for (let i = 1; i < keys.length; i++) {
@@ -315,6 +334,24 @@ const spells = [
         `Make a fist, then fling your hand open and push it towards the camera: a fireball forms at your palm and rushes at the viewer, with a crackling roar. ${GENERATED_NOTE}`,
       animationId: 'builtin:fireball',
       audioId: 'builtin:fire-crackle',
+      sensitivity: 1,
+    },
+  },
+  {
+    file: 'finger-slowdown.json',
+    regenerate: true,
+    // Six of the ten (three of each hand) show the back of the hand, the
+    // usual way to show the middle finger; seven start from a fist.
+    examples: () =>
+      Array.from({ length: COUNT }, (_, i) =>
+        example(() => middleFingerGesture({ ms: 200 + ((i * 3) % COUNT) * 28, fromFist: i % 3 !== 2 }), placement(i, i < 6 ? 'back' : 'palm'), i),
+      ),
+    spell: {
+      id: 'builtin:finger-slowdown',
+      name: 'Finger-Slowdown',
+      description: `Raise your middle finger from a fist: a gothic clock appears above it, its hands spinning fast and slowing tick by tick to a stop, as time winds down. ${GENERATED_NOTE}`,
+      animationId: 'builtin:clock',
+      audioId: 'builtin:clock-tick',
       sensitivity: 1,
     },
   },

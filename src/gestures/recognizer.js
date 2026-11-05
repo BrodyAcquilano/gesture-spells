@@ -40,6 +40,7 @@ export const DEFAULT_SETTINGS = {
   minThreshold: 0.2, // …but at least this
   maxThreshold: 5, // …and at most this
   margin: null, // and below this × the distance to the nearest other spell (null: no such cap)
+  minSpan: 0.4, // a live match must last at least this share of the example (0.4: a gesture up to 2.5× faster still matches)
   ratio: 0.7, // the nearest spell must also be this many times closer than the next nearest (null: no test)
   moveThreshold: 0.04, // hand movement (palm lengths per 1/30 s, five fastest points, over 100 ms) that counts as moving
   settleThreshold: 0.045, // …and as settled
@@ -84,22 +85,38 @@ function vectorsOf(frames, aspect, settings) {
 // Subsequence DTW: the whole `example` against any ending part of `live`,
 // both ending together. Returns the average distance per example step, plus
 // the end term.
-function matchScore(example, live, endWeight) {
+function matchScore(example, live, endWeight, minSpan = 0) {
   const m = example.length
   const n = live.length
-  // previous[c]: best total cost of matching example[0..i] ending at live[c].
+  // previous[c]: best total cost of matching example[0..i] ending at live[c],
+  // and previousStart[c]: where in live that best match started.
   let previous = new Float64Array(n)
-  for (let c = 0; c < n; c++) previous[c] = distance(example[0], live[c]) // the example may start anywhere
+  let previousStart = new Int32Array(n)
+  for (let c = 0; c < n; c++) {
+    previous[c] = distance(example[0], live[c]) // the example may start anywhere
+    previousStart[c] = c
+  }
   for (let i = 1; i < m; i++) {
     const current = new Float64Array(n).fill(Infinity)
+    const currentStart = new Int32Array(n)
     for (let c = 0; c < n; c++) {
       const d = distance(example[i], live[c])
       let best = previous[c] // live waits
-      if (c > 0) best = Math.min(best, previous[c - 1], current[c - 1]) // both move on / example waits
+      let start = previousStart[c]
+      if (c > 0) {
+        if (previous[c - 1] < best) [best, start] = [previous[c - 1], previousStart[c - 1]] // both move on
+        if (current[c - 1] < best) [best, start] = [current[c - 1], currentStart[c - 1]] // example waits
+      }
       current[c] = d + best
+      currentStart[c] = start
     }
     previous = current
+    previousStart = currentStart
   }
+  // The live movement must last at least minSpan of the example: otherwise
+  // the whole example has been squashed onto a moment or two of live
+  // movement, which would let a hand lowering a finger match one raising it.
+  if (n - 1 - previousStart[n - 1] < minSpan * (m - 1)) return Infinity
   return previous[n - 1] / m + endWeight * distance(example[m - 1], live[n - 1])
 }
 
@@ -120,7 +137,7 @@ export function buildRecognizer(spells, overrides = {}) {
     const examples = prepared[s]
     let own = DEFAULT_THRESHOLD
     if (examples.length >= 2) {
-      const nearestFellow = examples.map((a) => Math.min(...examples.filter((b) => b !== a).map((b) => matchScore(b, a, settings.endWeight))))
+      const nearestFellow = examples.map((a) => Math.min(...examples.filter((b) => b !== a).map((b) => matchScore(b, a, settings.endWeight, settings.minSpan))))
       const sorted = [...nearestFellow].sort((a, b) => a - b)
       const at = sorted[Math.min(sorted.length - 1, Math.floor(settings.limitQuantile * sorted.length))]
       own = Math.min(settings.maxThreshold, Math.max(settings.minThreshold, at * settings.limitSlack))
@@ -128,7 +145,7 @@ export function buildRecognizer(spells, overrides = {}) {
     let nearestOther = Infinity
     if (settings.margin != null) {
       const others = prepared.filter((_, o) => o !== s).flat()
-      for (const a of examples) for (const b of others) nearestOther = Math.min(nearestOther, matchScore(a, b, settings.endWeight))
+      for (const a of examples) for (const b of others) nearestOther = Math.min(nearestOther, matchScore(a, b, settings.endWeight, settings.minSpan))
     }
     const base = settings.margin == null ? own : Math.min(own, settings.margin * nearestOther)
     return { spell, examples, threshold: base * (spell.sensitivity ?? 1) }
@@ -140,27 +157,33 @@ export function buildRecognizer(spells, overrides = {}) {
   function classifySegment(frames, aspect) {
     if (frames.length < 2 || !entries.length) return { best: null, match: null }
     const live = vectorsOf(frames, aspect, settings)
-    let best = null
-    let second = Infinity
-    for (const entry of entries) {
-      let closest = Infinity
-      for (const example of entry.examples) closest = Math.min(closest, matchScore(example, live, settings.endWeight))
-      if (!best || closest < best.distance) {
-        if (best) second = best.distance
-        best = { spell: entry.spell, distance: closest, threshold: entry.threshold }
-      } else second = Math.min(second, closest)
-    }
-    // Clearly nearer than any other spell: a movement halfway between two
-    // spells (closing the hand looks a bit like a pinch and a bit like a
-    // snap) casts nothing.
-    const clear = settings.ratio == null || best.distance < settings.ratio * second
-    return { best, match: best && best.distance < best.threshold && clear ? best : null }
+    // Two distances per spell: `strict` needs the live movement to last at
+    // least minSpan of the example (an honest match); `loose` doesn't, so it
+    // shows anything the movement even vaguely resembles.
+    const scored = entries.map((entry) => {
+      let strict = Infinity
+      let loose = Infinity
+      for (const example of entry.examples) {
+        strict = Math.min(strict, matchScore(example, live, settings.endWeight, settings.minSpan))
+        loose = Math.min(loose, matchScore(example, live, settings.endWeight, 0))
+      }
+      return { entry, strict, loose }
+    })
+    let winner = scored[0]
+    for (const s of scored) if (s.strict < winner.strict || (!Number.isFinite(winner.strict) && s.loose < winner.loose)) winner = s
+    const best = { spell: winner.entry.spell, distance: Number.isFinite(winner.strict) ? winner.strict : winner.loose, threshold: winner.entry.threshold }
+    // Clearly nearer than any other spell, even loosely: a movement halfway
+    // between two spells (letting go of a pinch looks a bit like a pinch and
+    // a bit like opening the hand for a fireball) casts nothing.
+    const rival = Math.min(...scored.filter((s) => s !== winner).map((s) => s.loose))
+    const clear = settings.ratio == null || winner.strict < settings.ratio * rival
+    return { best, match: winner.strict < best.threshold && clear ? best : null }
   }
 
   // The distance from a live stretch to each spell's nearest example (for tests).
   function allDistances(frames, aspect) {
     const live = vectorsOf(frames, aspect, settings)
-    return entries.map((entry) => Math.min(...entry.examples.map((example) => matchScore(example, live, settings.endWeight))))
+    return entries.map((entry) => Math.min(...entry.examples.map((example) => matchScore(example, live, settings.endWeight, settings.minSpan))))
   }
 
   return { entries, settings, classifySegment, allDistances }

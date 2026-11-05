@@ -16,5 +16,11 @@
     "name": "Fire-Crackle",
     "procedural": "fire-crackle",
     "description": "A rushing whoosh and roar with crackles and pops, building for 0.9 s like the fireball, then dying away (2 s). Computed sample by sample in JavaScript (src/effects/fireSound.js)."
+  },
+  {
+    "id": "builtin:clock-tick",
+    "name": "Clock-Tick",
+    "procedural": "clock-tick",
+    "description": "A clock ticking fast, then gradually slowing down, each tick lower and longer, over a low tone sliding down, ending with a soft low bell as it stops (4.2 s). The ticks match the Clock animation's second hand. Computed sample by sample in JavaScript (src/effects/clockSound.js)."
   }
 ]

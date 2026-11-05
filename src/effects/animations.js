@@ -6,6 +6,7 @@
 import { createCoins } from './coins.js'
 import { createIllumination } from './illumination.js'
 import { createFireball } from './fireball.js'
+import { createClock } from './clock.js'
 
 export const PROCEDURAL_ANIMATIONS = {
   coins: {
@@ -30,6 +31,11 @@ export const PROCEDURAL_ANIMATIONS = {
   fireball: {
     anchor: 'palm',
     create: (x, y, height, width) => createFireball(x, y, height, width),
+  },
+  clock: {
+    anchor: 'middleTip',
+    follow: true,
+    create: (x, y, height) => createClock(x, y, height),
   },
 }
 
