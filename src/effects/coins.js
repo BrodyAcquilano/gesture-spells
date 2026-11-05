@@ -7,7 +7,7 @@
 // every frame is slow enough to make the animation stutter.
 
 const GRAVITY = 320 // pixels per second², downwards
-const BURST_COUNT = 5
+const BURST_COUNT = 10
 const SPRITE_SIZE = 64
 
 let sprite = null
@@ -38,8 +38,8 @@ export function createCoins() {
     burst(x, y, count = BURST_COUNT, scale = 1) {
       for (let i = 0; i < count; i++) {
         const angle = random(0, Math.PI * 2)
-        const speed = random(1200, 2000) * scale
-        const life = random(0.25, 0.4)
+        const speed = random(600, 1000) * scale
+        const life = random(0.4, 0.6)
         particles.push({
           x,
           y,
@@ -56,8 +56,8 @@ export function createCoins() {
     },
     update(dt) {
       for (const p of particles) {
-        p.vx *= Math.max(0, 1 - 3.5 * dt) // air drag
-        p.vy = p.vy * Math.max(0, 1 - 3.5 * dt) + p.gravity * dt
+        p.vx *= Math.max(0, 1 - 2.5 * dt) // air drag
+        p.vy = p.vy * Math.max(0, 1 - 2.5 * dt) + p.gravity * dt
         p.x += p.vx * dt
         p.y += p.vy * dt
         p.phase += p.spin * dt

@@ -1,4 +1,4 @@
-// "Spark chime": a magical shimmer about as long as the ✨ burst (1.8 s),
+// "Spark-Chime": a magical shimmer about as long as the coins burst (1.8 s),
 // fading out the same way.
 //
 // Every sample is computed directly in JavaScript, then saved as a WAV file,

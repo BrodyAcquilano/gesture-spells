@@ -1,4 +1,4 @@
-// "Fire crackle": the whoosh of a fireball forming, a roar while it flies, and
+// "Fire-Crackle": the whoosh of a fireball forming, a roar while it flies, and
 // crackles and pops throughout, about as long as the fireball (2 s), fading
 // to silence.
 //

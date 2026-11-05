@@ -16,7 +16,7 @@ export const PROCEDURAL = {
       name: 'Coins 🪙',
       procedural: 'coins',
       description:
-        'A quick burst of spinning 🪙 gold coins that fly out from the pinch and fade in under half a second. Drawn by code (src/effects/coins.js).',
+        'A quick burst of spinning 🪙 gold coins that fly out from the pinch and fade within about half a second. Drawn by code (src/effects/coins.js).',
     },
     {
       id: 'builtin:illumination',
@@ -36,7 +36,7 @@ export const PROCEDURAL = {
   audio: [
     {
       id: 'builtin:spark-chime',
-      name: 'Spark chime',
+      name: 'Spark-Chime',
       procedural: 'spark-chime',
       render: renderSparkChime,
       description:
@@ -44,7 +44,7 @@ export const PROCEDURAL = {
     },
     {
       id: 'builtin:fire-crackle',
-      name: 'Fire crackle',
+      name: 'Fire-Crackle',
       procedural: 'fire-crackle',
       render: renderFireCrackle,
       description:
