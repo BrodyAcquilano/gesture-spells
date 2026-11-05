@@ -49,3 +49,13 @@ export async function saveExportFile(name, blob) {
   const result = await request('PUT', `exports/${name}`, blob, { 'Content-Type': blob.type || 'application/octet-stream' })
   return result.path
 }
+
+// ---------- library files (uploaded animations and sounds) ----------
+
+// kind: 'animations' | 'audio'. Returns the file's index entry.
+export function uploadLibraryFile(kind, file, id) {
+  const query = new URLSearchParams({ name: file.name, ...(id && { id }) })
+  return request('POST', `library/${kind}?${query}`, file, { 'Content-Type': file.type || 'application/octet-stream' })
+}
+export const updateLibraryEntry = (kind, file, changes) => request('PUT', `library/${kind}/${file}`, ...json(changes))
+export const deleteLibraryFile = (kind, file) => request('DELETE', `library/${kind}/${file}`)

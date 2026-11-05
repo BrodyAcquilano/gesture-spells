@@ -1,6 +1,7 @@
 // A small promise wrapper around IndexedDB, the browser's built-in database.
-// Unlike localStorage it can hold binary files (Blobs) such as uploaded
-// animations, audio and recorded video, and it is not limited to a few MB.
+// The app no longer stores anything here: spells, uploads and recordings are
+// files in the project. Earlier versions kept spells and uploads here, so it
+// is read once at start-up to move them into files (see DataProvider.jsx).
 //
 // Every store keeps objects with an `id` field as the key.
 //   animations  uploaded animation files

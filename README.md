@@ -22,10 +22,11 @@ Then open http://localhost:5173 in Edge or Chrome and allow the camera (and
 the microphone, for recording) when asked.
 
 The dev server also saves files for the app (`server/storage.js`): spells
-into `public/library/spells/`, recordings into `recordings/` and finished
-videos into `exports/`. A browser page can't write files by itself, so
-spells can only be edited, and videos recorded, while `npm run dev` is
-running.
+into `public/library/spells/`, uploaded animations and sounds into
+`public/library/animations/` and `public/library/audio/`, recordings into
+`recordings/` and finished videos into `exports/`. A browser page can't write
+files by itself, so editing, uploading and recording only work while
+`npm run dev` is running.
 
 `npm install` also runs `npm run setup`, which copies the MediaPipe runtime
 into `public/mediapipe/` and downloads the hand model (about 8 MB) into
@@ -99,7 +100,8 @@ Build spells first, then record video while the app recognises them.
 - Viewer: plays the selected animation on a loop (silently: sound always
   comes from audio files).
 - Details: source, format, size and date, an editable description for
-  uploaded files, Delete, and an Upload button at the bottom.
+  uploaded files, Delete, and an Upload button at the bottom. Uploaded files
+  are saved into `public/library/animations/` (see "Where things are saved").
 - Built in: **Coins 🪙**, **Illumination** and **Fireball**, all drawn by code.
 
 **Audio.** The audio library, shared with Editing mode, laid out the same way.
@@ -263,7 +265,10 @@ Animations and audio come from three places, and all appear in both modes:
 - **Built-in files.** Files in `public/library/animations/` and
   `public/library/audio/`, each listed in that folder's `index.json` (see
   `public/library/README.md`).
-- **Uploaded.** Files you add with the green + or the upload button.
+- **Uploaded.** Files you add with the green + or the upload button. They
+  are saved into the same folders as the built-in files and listed in their
+  `index.json`, with a tidied file name (`My Sound (1).WAV` becomes
+  `my-sound-1.wav`), so they are part of the repository too.
 
 Accepted formats are ones Edge and Chrome can play without extra software:
 
@@ -279,19 +284,19 @@ Accepted formats are ones Edge and Chrome can play without extra software:
 | Spells, with their gestures | `public/library/spells/` (one JSON file each) | Yes: committed with your next push |
 | Recordings | `recordings/<id>/` (video, hand track, details) | No: git-ignored, stays on this computer |
 | Exported videos | `exports/` | No: git-ignored |
-| Uploaded animations and sounds | the browser's IndexedDB for this site | No |
+| Uploaded animations and sounds | `public/library/animations/` and `public/library/audio/` (listed in each `index.json`) | Yes: committed with your next push |
 
-Spells, recordings and exports are written by the dev server, because a web
-page can't write files on your computer by itself. The page sends them to
-`npm run dev`, which saves them in the project folder (`server/storage.js`).
+Everything is a plain file in the project folder; there is no database.
+The files are written by the dev server, because a web page can't write
+files on your computer by itself. The page sends them to `npm run dev`,
+which saves them (`server/storage.js`).
 
-Spells made before spells were saved as files were kept in the browser; the
-app moves any it finds into files the first time it opens.
+Earlier versions kept spells and uploads in the browser's database; the app
+moves anything it finds there into files the first time it opens.
 
-Uploaded files stay in the browser: still there next time the app is opened,
-in the same browser at the same address. `.gitignore` also excludes any
-video files saved into the project (`.webm`, `.mp4`, `.mov`, `.mkv`),
-except built-in animations in `public/library/`.
+`.gitignore` excludes `recordings/`, `exports/` and any video files saved
+elsewhere in the project (`.webm`, `.mp4`, `.mov`, `.mkv`), except in
+`public/library/`, so uploaded video animations are committed.
 
 ## How gestures are recognised
 
@@ -376,9 +381,9 @@ Current results:
 | `vite`, `eslint` and plugins | Development server, build and lint (development only) |
 
 Everything else comes from the browser: camera and microphone
-(`getUserMedia`), drawing (canvas), sound (Web Audio), recording and MP4
-export (`MediaRecorder`, `canvas.captureStream`) and storage (IndexedDB),
-plus Node's own file functions in the dev server.
+(`getUserMedia`), drawing (canvas), sound (Web Audio), and recording and MP4
+export (`MediaRecorder`, `canvas.captureStream`), plus Node's own file
+functions in the dev server.
 
 ## Code layout
 
@@ -397,9 +402,12 @@ src/
                        audio engine, effect player
   library/             shared data (library files, spells), accepted formats, built-ins
   record/              video recording (MediaRecorder, MP4 or WebM)
-  storage/             IndexedDB wrapper; projectApi.js talks to the dev server
-server/storage.js      dev-server routes that save spells, recordings, exports
-public/library/        built-in animation and audio files, and the spells
+  storage/             projectApi.js talks to the dev server; db.js reads the
+                       old browser database once, to move it into files
+server/storage.js      dev-server routes that save spells, uploads, recordings,
+                       exports
+public/library/        animation and audio files (built-in and uploaded), and
+                       the spells
 recordings/, exports/  your videos (git-ignored)
 scripts/               MediaPipe setup, maths checks, spell generator
 ```
@@ -408,6 +416,4 @@ scripts/               MediaPipe setup, maths checks, spell generator
 
 1. Editing: video and audio timeline, select a stretch, apply effects, find
    similar gestures, export.
-2. Save uploaded animations and sounds as project files too, so spells that
-   use them work on other computers.
-3. The Animation Builder and Audio Lab.
+2. The Animation Builder and Audio Lab.

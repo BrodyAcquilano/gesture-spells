@@ -25,6 +25,14 @@
 //
 // Exports: finished videos from the Finalize tab, in exports/ (git-ignored).
 //   PUT    /api/exports/<name>.mp4|.webm    save a finished video → { path }
+//
+// Library files: uploaded animations and sounds, saved into
+// public/library/animations/ and public/library/audio/ and listed in that
+// folder's index.json. They are part of the repository, so spells that use
+// them work wherever the project is cloned. (<kind> is animations or audio.)
+//   POST   /api/library/<kind>?name=&id=    save an uploaded file (raw bytes) → its index entry
+//   PUT    /api/library/<kind>/<file>       change its entry (name, description)
+//   DELETE /api/library/<kind>/<file>       delete the file and its entry
 import { createReadStream, createWriteStream } from 'node:fs'
 import { mkdir, readFile, readdir, rm, stat, unlink, writeFile } from 'node:fs/promises'
 import { pipeline } from 'node:stream/promises'
@@ -42,6 +50,14 @@ const SPELL_FILE = /^[a-z0-9][a-z0-9-]*\.json$/
 const SAFE_ID = /^[a-z0-9][a-z0-9-]*$/
 const EXPORT_FILE = /^[a-z0-9][a-z0-9-]*\.(mp4|webm)$/
 const VIDEO_TYPES = { mp4: 'video/mp4', webm: 'video/webm' }
+
+// The same formats the app accepts (src/library/formats.js).
+const LIBRARY_EXTENSIONS = {
+  animations: ['webm', 'mp4', 'gif', 'webp', 'png', 'apng', 'json'],
+  audio: ['mp3', 'wav', 'ogg', 'oga', 'opus', 'm4a', 'aac', 'flac', 'webm'],
+}
+const LIBRARY_FILE = /^[a-z0-9][a-z0-9._-]*$/
+const LIBRARY_ID = /^[A-Za-z0-9:._-]{1,100}$/
 
 // A recording's video file, whichever format it was saved in.
 async function findVideo(folder) {
@@ -173,6 +189,64 @@ async function sendFile(request, response, url, type) {
   return pipeline(createReadStream(url), response)
 }
 
+// ---------- library files ----------
+
+const libraryFolder = (kind) => new URL(`public/library/${kind}/`, root)
+
+async function readLibraryIndex(kind) {
+  return readJson(new URL('index.json', libraryFolder(kind)), [])
+}
+
+async function writeLibraryIndex(kind, entries) {
+  await writeFile(new URL('index.json', libraryFolder(kind)), JSON.stringify(entries, null, 2) + '\n')
+}
+
+// A safe file name from an uploaded name: "My Sound (1).MP3" → my-sound-1.mp3,
+// with a short random part added if that name is taken.
+function libraryFileName(original, kind, taken) {
+  const dot = original.lastIndexOf('.')
+  const ext = dot === -1 ? '' : original.slice(dot + 1).toLowerCase()
+  if (!LIBRARY_EXTENSIONS[kind].includes(ext)) throw Object.assign(new Error(`Not a supported ${kind} format`), { status: 400 })
+  const base = slug(dot === -1 ? original : original.slice(0, dot))
+  let name = `${base}.${ext}`
+  while (taken.has(name)) name = `${base}-${Math.random().toString(36).slice(2, 6)}.${ext}`
+  return name
+}
+
+async function addLibraryFile(request, kind, original, id) {
+  const entries = await readLibraryIndex(kind)
+  const file = libraryFileName(original, kind, new Set(entries.map((e) => e.file)))
+  const url = new URL(file, libraryFolder(kind))
+  await saveStream(request, url)
+  const entry = {
+    id: id && LIBRARY_ID.test(id) ? id : `file:${kind}:${file}`,
+    name: original,
+    file,
+    description: '',
+    size: (await stat(url)).size,
+    addedAt: Date.now(),
+  }
+  await writeLibraryIndex(kind, [...entries, entry])
+  return entry
+}
+
+async function updateLibraryFile(kind, file, changes) {
+  const entries = await readLibraryIndex(kind)
+  const at = entries.findIndex((e) => e.file === file)
+  if (at === -1) throw Object.assign(new Error('No such file'), { status: 404 })
+  const allowed = {}
+  if (typeof changes.name === 'string') allowed.name = changes.name
+  if (typeof changes.description === 'string') allowed.description = changes.description
+  entries[at] = { ...entries[at], ...allowed }
+  await writeLibraryIndex(kind, entries)
+}
+
+async function deleteLibraryFile(kind, file) {
+  const entries = await readLibraryIndex(kind)
+  await writeLibraryIndex(kind, entries.filter((e) => e.file !== file))
+  await unlink(new URL(file, libraryFolder(kind))).catch(() => {})
+}
+
 // ---------- routing ----------
 
 async function handle(request, response) {
@@ -213,6 +287,17 @@ async function handle(request, response) {
         return send(response, 204)
       }
       if (part === 'track' && method === 'GET') return send(response, 200, await readJson(new URL('track.json', folder), []))
+    }
+    if (parts[0] === 'library') {
+      const [, kind, file] = parts
+      if (!LIBRARY_EXTENSIONS[kind]) return send(response, 400, { error: 'Bad library kind' })
+      if (!file && method === 'POST') {
+        const name = url.searchParams.get('name') ?? ''
+        return send(response, 201, await addLibraryFile(request, kind, name, url.searchParams.get('id')))
+      }
+      if (!file || !LIBRARY_FILE.test(file) || file === 'index.json') return send(response, 400, { error: 'Bad file name' })
+      if (method === 'PUT') return send(response, 204, await updateLibraryFile(kind, file, await bodyJson(request)))
+      if (method === 'DELETE') return send(response, 204, await deleteLibraryFile(kind, file))
     }
     if (parts[0] === 'exports' && method === 'PUT') {
       const name = parts[1]

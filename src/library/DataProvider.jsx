@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { getAll, put, remove, requestPersistentStorage } from '../storage/db.js'
+import { getAll, remove } from '../storage/db.js'
 import { PROCEDURAL, loadBuiltInSpells, loadFileManifest } from './builtins.js'
 import {
   createSpellFile,
+  deleteLibraryFile,
   deleteRecordingFiles,
   deleteSpellFile,
   listRecordings,
@@ -10,22 +11,28 @@ import {
   saveRecordingFiles,
   saveRecordingMeta,
   saveSpellFile,
+  updateLibraryEntry,
+  uploadLibraryFile,
 } from '../storage/projectApi.js'
 import { isAccepted } from './formats.js'
 import { DataContext } from './DataContext.js'
 
 // Loads everything once when the app starts and keeps it in React state.
 // Changes are saved straight away, so they survive a reload:
-//   spells      as files in public/library/spells/ (part of the repository)
-//   recordings  as files in recordings/ (local only, git-ignored)
-//   uploads     in the browser's IndexedDB
-// Spells and recordings are written by the dev server (server/storage.js).
-// Without it (a static build) spells are read-only and there are no
-// recordings.
+//   spells             files in public/library/spells/ (in the repository)
+//   uploaded files     files in public/library/animations/ and audio/ (in
+//                      the repository, so spells that use them work anywhere)
+//   recordings         files in recordings/ (local only, git-ignored)
+// They are written by the dev server (server/storage.js), because a page
+// can't write files itself. Without it (a static build) everything is
+// read-only and there are no recordings.
 //
-// An uploaded file is stored as a Blob. To show or play it, the page needs a
-// URL, so each one gets an "object URL" (blob:...) that points at the Blob in
-// memory. Those are released when a file is deleted or the app closes.
+// Earlier versions kept spells and uploads in the browser's database
+// (IndexedDB); anything found there is moved into files once.
+//
+// The built-in sounds are made by code as Blobs in memory. To play one, the
+// page needs a URL, so each gets an "object URL" (blob:...), released when
+// the app closes.
 
 const KINDS = ['animations', 'audio']
 
@@ -35,11 +42,8 @@ function proceduralEntries(kind) {
   return PROCEDURAL[kind].map(({ render, ...entry }) => ({ ...entry, source: 'built-in' }))
 }
 
-function withoutRuntimeFields(item) {
-  // eslint-disable-next-line no-unused-vars
-  const { url, source, ...record } = item
-  return record
-}
+const libraryBase = (kind) => `${import.meta.env.BASE_URL}library/${kind}/`
+const asLibraryItem = (kind, entry) => ({ ...entry, source: 'file', url: libraryBase(kind) + entry.file })
 
 export default function DataProvider({ children }) {
   const [library, setLibrary] = useState({ animations: proceduralEntries('animations'), audio: proceduralEntries('audio') })
@@ -58,10 +62,6 @@ export default function DataProvider({ children }) {
     return url
   }, [])
 
-  const dropUrl = useCallback((url) => {
-    if (url && objectUrls.current.delete(url)) URL.revokeObjectURL(url)
-  }, [])
-
   const replaceSpells = useCallback((next) => {
     spellsRef.current = next
     setSpells(next)
@@ -69,7 +69,6 @@ export default function DataProvider({ children }) {
 
   useEffect(() => {
     let cancelled = false
-    requestPersistentStorage()
     const urls = objectUrls.current
 
     // Procedural audio is rendered to a WAV file in the background; its
@@ -94,19 +93,11 @@ export default function DataProvider({ children }) {
     }
 
     async function load() {
-      const [files, uploads] = await Promise.all([
-        Promise.all(KINDS.map(loadFileManifest)),
-        Promise.all(KINDS.map((kind) => getAll(kind))),
-      ])
+      const files = await Promise.all(KINDS.map(loadFileManifest))
       if (cancelled) return
       const next = {}
       KINDS.forEach((kind, i) => {
-        next[kind] = [
-          ...files[i].map((entry) => ({ ...entry, source: 'built-in' })),
-          ...uploads[i]
-            .sort((a, b) => a.addedAt - b.addedAt)
-            .map((record) => ({ ...record, source: 'uploaded', url: makeUrl(record.blob) })),
-        ]
+        next[kind] = files[i].map((entry) => ({ ...entry, source: 'file' }))
       })
       // Keep the built-ins made by code as they are: their audio may already be rendered.
       setLibrary((current) => {
@@ -117,6 +108,26 @@ export default function DataProvider({ children }) {
         return merged
       })
       setLoaded(true)
+      await moveOldUploads()
+    }
+
+    // Uploads made before uploads were saved as files are still in this
+    // browser's database: save each into the project (keeping its id, so
+    // spells that use it still find it), then remove it there.
+    async function moveOldUploads() {
+      for (const kind of KINDS) {
+        const old = await getAll(kind).catch(() => [])
+        for (const record of old.sort((a, b) => a.addedAt - b.addedAt)) {
+          const file = new File([record.blob], record.name, { type: record.type })
+          const entry = await uploadLibraryFile(kind, file, record.id)
+          if (record.description) {
+            await updateLibraryEntry(kind, entry.file, { description: record.description })
+            entry.description = record.description
+          }
+          await remove(kind, record.id)
+          if (!cancelled) setLibrary((current) => ({ ...current, [kind]: [...current[kind], asLibraryItem(kind, entry)] }))
+        }
+      }
     }
 
     async function loadSpells() {
@@ -164,54 +175,38 @@ export default function DataProvider({ children }) {
     }
   }, [makeUrl, replaceSpells])
 
-  // Returns { added: [items], rejected: [file names] }.
-  const addFiles = useCallback(
-    async (kind, fileList) => {
-      const added = []
-      const rejected = []
-      for (const file of fileList) {
-        if (!isAccepted(kind, file)) {
-          rejected.push(file.name)
-          continue
-        }
-        const record = {
-          id: crypto.randomUUID(),
-          name: file.name,
-          type: file.type,
-          size: file.size,
-          addedAt: Date.now(),
-          description: '',
-          blob: file,
-        }
-        await put(kind, record)
-        added.push({ ...record, source: 'uploaded', url: makeUrl(file) })
+  // Saves uploaded files into the project. Returns { added: [items], rejected: [file names] }.
+  const addFiles = useCallback(async (kind, fileList) => {
+    const added = []
+    const rejected = []
+    for (const file of fileList) {
+      if (!isAccepted(kind, file)) {
+        rejected.push(file.name)
+        continue
       }
-      setLibrary((current) => ({ ...current, [kind]: [...current[kind], ...added] }))
-      return { added, rejected }
-    },
-    [makeUrl],
-  )
+      added.push(asLibraryItem(kind, await uploadLibraryFile(kind, file)))
+    }
+    setLibrary((current) => ({ ...current, [kind]: [...current[kind], ...added] }))
+    return { added, rejected }
+  }, [])
 
+  // changes: { name?, description? }
   const updateFile = useCallback(async (kind, item, changes) => {
     const next = { ...item, ...changes }
     setLibrary((current) => ({
       ...current,
       [kind]: current[kind].map((entry) => (entry.id === item.id ? next : entry)),
     }))
-    await put(kind, withoutRuntimeFields(next))
+    await updateLibraryEntry(kind, item.file, changes)
   }, [])
 
-  const removeFile = useCallback(
-    async (kind, item) => {
-      await remove(kind, item.id)
-      dropUrl(item.url)
-      setLibrary((current) => ({
-        ...current,
-        [kind]: current[kind].filter((entry) => entry.id !== item.id),
-      }))
-    },
-    [dropUrl],
-  )
+  const removeFile = useCallback(async (kind, item) => {
+    await deleteLibraryFile(kind, item.file)
+    setLibrary((current) => ({
+      ...current,
+      [kind]: current[kind].filter((entry) => entry.id !== item.id),
+    }))
+  }, [])
 
   // template: an optional spell to copy ("Make a copy").
   const createSpell = useCallback(

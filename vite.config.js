@@ -10,7 +10,7 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     // Saving a spell, recording or export must not make the page reload.
-    watch: { ignored: ['**/public/library/spells/**', '**/recordings/**', '**/exports/**'] },
+    watch: { ignored: ['**/public/library/**', '**/recordings/**', '**/exports/**'] },
   },
   preview: { port: 4173, strictPort: true },
 })
