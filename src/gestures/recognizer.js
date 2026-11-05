@@ -24,22 +24,29 @@
 // with the moment a live gesture is found.
 import { arrivalTime, distance, sequenceFeatures } from './features.js'
 
-// Every number the recogniser uses, tuned against real recordings with
-// `npm run tune` (scripts/tune-recognizer.js).
+// Every number the recogniser uses. Tuned with `npm run tune`
+// (scripts/tune-recognizer.js) on the generated examples, and checked
+// against the owner's real recordings of snaps and fireballs (which are not
+// stored as examples): they should cast, and nothing should cast the wrong
+// spell. The limits are generous (limitSlack 4) because generated examples
+// are more alike than real gestures; the ratio test keeps a movement that is
+// halfway between two spells from casting either.
 export const DEFAULT_SETTINGS = {
   stepMs: 60, // movements are resampled to one step per this many ms
   liveSeconds: 3, // how much live movement is compared, up to the moment it settles
-  endWeight: 2, // how much the final pose counts on top of DTW
+  endWeight: 1, // how much the final pose counts on top of DTW
   limitQuantile: 0.9, // a spell's limit: this share of its examples' nearest-fellow distances…
-  limitSlack: 1.5, // …times this…
+  limitSlack: 4, // …times this…
   minThreshold: 0.2, // …but at least this
   maxThreshold: 5, // …and at most this
-  margin: 1, // and below this × the distance to the nearest other spell (null: no such cap)
-  moveThreshold: 0.07, // hand movement per frame (palm lengths, five fastest points) that counts as moving
+  margin: null, // and below this × the distance to the nearest other spell (null: no such cap)
+  ratio: 0.7, // the nearest spell must also be this many times closer than the next nearest (null: no test)
+  moveThreshold: 0.04, // hand movement (palm lengths per 1/30 s, five fastest points, over 100 ms) that counts as moving
   settleThreshold: 0.045, // …and as settled
-  features: { shapeWeight: 1, tipWeight: 2, pathWeight: 4, facingWeight: 0 },
+  features: { shapeWeight: 0.25, tipWeight: 2, pathWeight: 0, facingWeight: 0, depthWeight: 8, curlWeight: 1 },
 }
 
+const SPAN_MS = 100 // movement is measured over this long
 const AFTER_ARRIVAL_MS = 50 // keep a frame or so past the arrival moment
 const MIN_STEPS = 3
 export const DEFAULT_THRESHOLD = 1 // used when a spell has only one example
@@ -134,15 +141,29 @@ export function buildRecognizer(spells, overrides = {}) {
     if (frames.length < 2 || !entries.length) return { best: null, match: null }
     const live = vectorsOf(frames, aspect, settings)
     let best = null
+    let second = Infinity
     for (const entry of entries) {
       let closest = Infinity
       for (const example of entry.examples) closest = Math.min(closest, matchScore(example, live, settings.endWeight))
-      if (!best || closest < best.distance) best = { spell: entry.spell, distance: closest, threshold: entry.threshold }
+      if (!best || closest < best.distance) {
+        if (best) second = best.distance
+        best = { spell: entry.spell, distance: closest, threshold: entry.threshold }
+      } else second = Math.min(second, closest)
     }
-    return { best, match: best && best.distance < best.threshold ? best : null }
+    // Clearly nearer than any other spell: a movement halfway between two
+    // spells (closing the hand looks a bit like a pinch and a bit like a
+    // snap) casts nothing.
+    const clear = settings.ratio == null || best.distance < settings.ratio * second
+    return { best, match: best && best.distance < best.threshold && clear ? best : null }
   }
 
-  return { entries, settings, classifySegment }
+  // The distance from a live stretch to each spell's nearest example (for tests).
+  function allDistances(frames, aspect) {
+    const live = vectorsOf(frames, aspect, settings)
+    return entries.map((entry) => Math.min(...entry.examples.map((example) => matchScore(example, live, settings.endWeight))))
+  }
+
+  return { entries, settings, classifySegment, allDistances }
 }
 
 // Follows a live hand frame by frame and reports when a gesture has been
@@ -155,10 +176,12 @@ export function createLiveMatcher(recognizer) {
   let recent = [] // the last few movement amounts, for smoothing
   let moving = false
 
-  // How far the hand moved since the previous frame: the average of the five
-  // landmarks that moved most (so a pinch, where only two fingers move,
-  // counts as moving), in palm lengths per 1/30 s (so it doesn't depend on
-  // the frame rate).
+  // How fast the hand is moving: how far it moved over the last ~100 ms,
+  // the average of the five landmarks that moved most (so a pinch, where only
+  // two fingers move, counts as moving), in palm lengths per 1/30 s (so it
+  // doesn't depend on the frame rate). Measuring over 100 ms rather than one
+  // frame lets a small, steady movement add up while the tracker's jitter
+  // doesn't, so a gentle pinch stands out from a hand held still.
   function movementOf(a, b, aspect) {
     const palm = Math.hypot((b.points[9][0] - b.points[0][0]) * aspect, b.points[9][1] - b.points[0][1]) || 1e-6
     const moved = b.points.map((point, i) => Math.hypot((point[0] - a.points[i][0]) * aspect, point[1] - a.points[i][1]))
@@ -178,8 +201,10 @@ export function createLiveMatcher(recognizer) {
       history.push(frame)
       while (history.length && history[0].t < frame.t - settings.liveSeconds * 1000) history.shift()
       if (!previous || history.length < 2) return null
-      recent.push(movementOf(previous, frame, aspect))
-      if (recent.length > 3) recent.shift()
+      let earlier = history.length - 2
+      while (earlier > 0 && frame.t - history[earlier].t < SPAN_MS) earlier--
+      recent.push(movementOf(history[earlier], frame, aspect))
+      if (recent.length > 2) recent.shift()
       const amount = recent.reduce((a, b) => a + b, 0) / recent.length
       if (amount > settings.moveThreshold) moving = true
       else if (moving && amount < settings.settleThreshold) {

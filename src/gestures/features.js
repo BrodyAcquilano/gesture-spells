@@ -1,11 +1,12 @@
 // Turns a recorded or live hand movement into numbers that can be compared.
 //
 // A movement is a list of frames { t (ms), label ('Left'|'Right'), points }.
-// Each frame becomes one feature vector of 47 numbers:
+// Each frame becomes one feature vector of 53 numbers:
 //
 //   40  hand shape: landmarks 1–20 relative to the wrist, divided by the palm
-//       length (wrist to the base of the middle finger). This ignores where the
-//       hand is and how far it is from the camera.
+//       length (wrist to the base of the middle finger), and turned so the
+//       palm points straight up. This ignores where the hand is, how far it
+//       is from the camera and how much it is tilted.
 //    4  thumb tip to each fingertip, divided by palm length. These capture
 //       pinches and other finger contacts strongly.
 //    2  path: where the hand is relative to its average position during the
@@ -18,6 +19,13 @@
 //       divided by the palm length squared, goes from about +0.5 to −0.5 as
 //       the hand turns over. A snap done with the palm towards yourself
 //       turns the hand over; a pinch doesn't.
+//    1  depth: how much bigger or smaller the hand looks than at the end (or
+//       on average), as a logarithm. A hand pushed towards the camera grows:
+//       this is what tells a fireball push from simply opening the hand.
+//    5  curl: each fingertip's distance from the wrist, divided by palm
+//       length: about 1 curled into a fist, about 2 straight. Unlike the
+//       hand shape above it hardly depends on whose hand it is or how the
+//       camera sees it.
 // Each group is multiplied by a weight (DEFAULT_FEATURES below; the
 // recogniser passes its own tuned weights).
 //
@@ -45,11 +53,16 @@ function frameFeatures(points, aspect, label, weights) {
   const px = (i) => points[i][0] * aspect
   const py = (i) => points[i][1]
   const palm = Math.hypot(px(MIDDLE_BASE) - px(WRIST), py(MIDDLE_BASE) - py(WRIST)) || 1e-6
-  const vector = new Float64Array(47)
+  // up: from the wrist to the base of the middle finger; right: across it.
+  const ux = (px(MIDDLE_BASE) - px(WRIST)) / palm
+  const uy = (py(MIDDLE_BASE) - py(WRIST)) / palm
+  const vector = new Float64Array(53)
   let k = 0
   for (let i = 1; i < 21; i++) {
-    vector[k++] = ((px(i) - px(WRIST)) / palm) * flip * shapeWeight
-    vector[k++] = ((py(i) - py(WRIST)) / palm) * shapeWeight
+    const dx = (px(i) - px(WRIST)) / palm
+    const dy = (py(i) - py(WRIST)) / palm
+    vector[k++] = (dx * -uy + dy * ux) * flip * shapeWeight
+    vector[k++] = -(dx * ux + dy * uy) * shapeWeight
   }
   for (const tip of FINGERTIPS) {
     vector[k++] = (Math.hypot(px(tip) - px(THUMB_TIP), py(tip) - py(THUMB_TIP)) / palm) * tipWeight
@@ -60,6 +73,9 @@ function frameFeatures(points, aspect, label, weights) {
   const bx = px(PINKY_BASE) - px(WRIST)
   const by = py(PINKY_BASE) - py(WRIST)
   vector[46] = ((ax * by - ay * bx) / (palm * palm)) * flip * (weights.facingWeight ?? 0)
+  ;[THUMB_TIP, ...FINGERTIPS].forEach((tip, j) => {
+    vector[48 + j] = (Math.hypot(px(tip) - px(WRIST), py(tip) - py(WRIST)) / palm) * (weights.curlWeight ?? 0)
+  })
   // Filled in by sequenceFeatures, which knows the whole movement.
   // The path is not mirrored: a swipe to the right stays a swipe to the right.
   return { vector, palm, x: px(MIDDLE_BASE), y: py(MIDDLE_BASE) }
@@ -75,9 +91,11 @@ export function sequenceFeatures(frames, aspect, weights = DEFAULT_FEATURES, pat
   const meanPalm = rows.reduce((sum, row) => sum + row.palm, 0) / n
   const originX = pathFrom === 'end' ? rows[n - 1].x : rows.reduce((sum, row) => sum + row.x, 0) / n
   const originY = pathFrom === 'end' ? rows[n - 1].y : rows.reduce((sum, row) => sum + row.y, 0) / n
+  const originPalm = pathFrom === 'end' ? rows[n - 1].palm : meanPalm
   for (const row of rows) {
     row.vector[44] = ((row.x - originX) / meanPalm) * weights.pathWeight
     row.vector[45] = ((row.y - originY) / meanPalm) * weights.pathWeight
+    row.vector[47] = Math.log(row.palm / originPalm) * (weights.depthWeight ?? 0)
   }
   return rows.map((row, i) => {
     const before = rows[Math.max(0, i - 1)].vector

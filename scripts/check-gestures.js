@@ -2,7 +2,7 @@
 //   - DTW on hand-worked tiny cases
 //   - on a synthetic hand: recording a pinch is trimmed to the movement, and
 //     a still hand, a drifting hand, a wave, a fist and a half pinch never cast
-//   - the spells' real recordings, replayed live and unseen: no wrong spell,
+//   - the spells' examples, replayed live and unseen: no wrong spell,
 //     nothing cast when played backwards, and at least 80% cast
 //   - the spark chime, fire crackle and light swell: length, level, fade to silence
 // Run with `npm run check`.
@@ -118,11 +118,9 @@ function runLive(frames, rec = recognizer) {
   return { casts, closest }
 }
 
-// Synthetic live pinches. Reported, not checked: this synthetic hand pinches
-// slowly with the rest of the hand dead still, a third as much movement per
-// frame as real recorded pinches, which is below the movement the live
-// matcher (tuned on real recordings) counts as a gesture. The real-recording
-// tests below are the ones that matter.
+// Synthetic live pinches with this file's own hand, shaped differently from
+// the generated examples. Reported, not checked: a hint that the generated
+// examples carry over to other hands. The spell tests below are the strict ones.
 const info = (name, result) =>
   console.log(`info  ${name}: ${result.casts.length ? `cast at ${result.casts.map((t) => t.toFixed(0)).join(', ')} ms` : 'no cast'}, closest ${Number.isFinite(result.closest) ? result.closest.toFixed(3) : '(never counted as a movement)'}`)
 info('synthetic live pinch (closes at 1450 ms)', runLive(movement(3000, pinchAt(1200, 250, { scale: 0.95, dx: 0.1, dy: -0.05 }))))
@@ -150,7 +148,7 @@ for (const [name, at] of Object.entries(negatives)) {
   check(`no cast: ${name}`, result.casts.length === 0, `closest ${Number.isFinite(result.closest) ? result.closest.toFixed(3) : 'skipped (too little movement)'}`)
 }
 
-// ---------- the spells, with their real recordings ----------
+// ---------- the spells, with their examples ----------
 // Every example is played back as a live stream (held still before and
 // after) through the same live matcher as the app, to a recogniser with all
 // the spells but without that example, so it has never seen it.
@@ -225,7 +223,7 @@ for (const spellUnderTest of builtIns) {
   )
 }
 check(
-  'at least 80% of real examples cast their own spell',
+  'at least 80% of examples cast their own spell',
   examplesCast >= examplesTried * 0.8,
   `${examplesCast} of ${examplesTried} (${Math.round((100 * examplesCast) / examplesTried)}%)`,
 )

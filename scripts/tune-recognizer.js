@@ -1,4 +1,4 @@
-// Tunes the recogniser's settings on the real gesture examples in the
+// Tunes the recogniser's settings on the gesture examples in the
 // spellbook. Run with `npm run tune` (it takes a few minutes).
 //
 // Each example is replayed as if it were being performed live: the hand
