@@ -14,5 +14,5 @@ const TABS = [
 ]
 
 export default function SpellbookMode() {
-  return <ModeShell tabs={TABS} defaultTab="spells" />
+  return <ModeShell base="/spellbook" tabs={TABS} defaultTab="spells" />
 }

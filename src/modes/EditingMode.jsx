@@ -13,5 +13,5 @@ const TABS = [
 ]
 
 export default function EditingMode() {
-  return <ModeShell tabs={TABS} defaultTab="record" />
+  return <ModeShell base="/editing" tabs={TABS} defaultTab="record" />
 }

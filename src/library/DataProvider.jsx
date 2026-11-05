@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getAll, put, remove, requestPersistentStorage } from '../storage/db.js'
-import { BUILTIN_SPELLS, PROCEDURAL, loadFileManifest } from './builtins.js'
+import { PROCEDURAL, loadFileManifest } from './builtins.js'
 import { isAccepted } from './formats.js'
 import { DataContext } from './DataContext.js'
 
@@ -11,6 +11,14 @@ import { DataContext } from './DataContext.js'
 // URL, so each one gets an "object URL" (blob:...) that points at the Blob in
 // memory. Those are released when a file is deleted or the app closes.
 
+const KINDS = ['animations', 'audio']
+
+// Built-ins made by code are known before anything loads, so they show at once.
+function proceduralEntries(kind) {
+  // eslint-disable-next-line no-unused-vars
+  return PROCEDURAL[kind].map(({ render, ...entry }) => ({ ...entry, source: 'built-in' }))
+}
+
 function withoutRuntimeFields(item) {
   // eslint-disable-next-line no-unused-vars
   const { url, source, ...record } = item
@@ -18,12 +26,14 @@ function withoutRuntimeFields(item) {
 }
 
 export default function DataProvider({ children }) {
-  const [library, setLibrary] = useState({ animations: [], audio: [] })
-  const [userSpells, setUserSpells] = useState([])
+  const [library, setLibrary] = useState({ animations: proceduralEntries('animations'), audio: proceduralEntries('audio') })
+  const [spells, setSpells] = useState([])
   const [takes, setTakes] = useState([])
   const [loaded, setLoaded] = useState(false)
   const [loadError, setLoadError] = useState('')
   const objectUrls = useRef(new Set())
+  // The latest spells, so several quick edits in a row each build on the last.
+  const spellsRef = useRef([])
 
   const makeUrl = useCallback((blob) => {
     const url = URL.createObjectURL(blob)
@@ -35,37 +45,70 @@ export default function DataProvider({ children }) {
     if (url && objectUrls.current.delete(url)) URL.revokeObjectURL(url)
   }, [])
 
+  const replaceSpells = useCallback((next) => {
+    spellsRef.current = next
+    setSpells(next)
+  }, [])
+
   useEffect(() => {
     let cancelled = false
     requestPersistentStorage()
     const urls = objectUrls.current
 
+    // Procedural audio is rendered to a WAV file in the background; its
+    // player fills in a moment after the app opens.
+    async function renderProcedural() {
+      for (const kind of KINDS) {
+        for (const { id, render } of PROCEDURAL[kind]) {
+          if (!render) continue
+          try {
+            const { blob } = await render()
+            if (cancelled) return
+            const url = makeUrl(blob)
+            setLibrary((current) => ({
+              ...current,
+              [kind]: current[kind].map((item) => (item.id === id ? { ...item, blob, size: blob.size, url } : item)),
+            }))
+          } catch (error) {
+            console.error(`Could not render ${id}`, error)
+          }
+        }
+      }
+    }
+
     async function load() {
-      const kinds = ['animations', 'audio']
-      const [files, uploads, spells, savedTakes] = await Promise.all([
-        Promise.all(kinds.map(loadFileManifest)),
-        Promise.all(kinds.map((kind) => getAll(kind))),
+      const [files, uploads, savedSpells, savedTakes] = await Promise.all([
+        Promise.all(KINDS.map(loadFileManifest)),
+        Promise.all(KINDS.map((kind) => getAll(kind))),
         getAll('spells'),
         getAll('takes'),
       ])
       if (cancelled) return
       const next = {}
-      kinds.forEach((kind, i) => {
+      KINDS.forEach((kind, i) => {
         next[kind] = [
-          ...PROCEDURAL[kind].map((entry) => ({ ...entry, source: 'built-in' })),
           ...files[i].map((entry) => ({ ...entry, source: 'built-in' })),
           ...uploads[i]
             .sort((a, b) => a.addedAt - b.addedAt)
             .map((record) => ({ ...record, source: 'uploaded', url: makeUrl(record.blob) })),
         ]
       })
-      setLibrary(next)
-      setUserSpells(spells.sort((a, b) => a.createdAt - b.createdAt))
+      // Keep the built-ins made by code as they are: their audio may already be rendered.
+      setLibrary((current) => {
+        const merged = {}
+        for (const kind of KINDS) {
+          merged[kind] = [...current[kind].filter((item) => item.procedural), ...next[kind]]
+        }
+        return merged
+      })
+      replaceSpells(savedSpells.sort((a, b) => a.createdAt - b.createdAt))
       setTakes(savedTakes.sort((a, b) => a.createdAt - b.createdAt))
       setLoaded(true)
     }
 
+    renderProcedural()
     load().catch((error) => {
+      console.error(error)
       if (!cancelled) setLoadError(`Could not open the saved library: ${error.message}`)
     })
 
@@ -74,7 +117,7 @@ export default function DataProvider({ children }) {
       for (const url of urls) URL.revokeObjectURL(url)
       urls.clear()
     }
-  }, [makeUrl])
+  }, [makeUrl, replaceSpells])
 
   // Returns { added: [items], rejected: [file names] }.
   const addFiles = useCallback(
@@ -131,32 +174,42 @@ export default function DataProvider({ children }) {
       name: 'New spell',
       description: '',
       createdAt: Date.now(),
-      gesture: null,
+      gesture: null, // { examples: [{ recordedAt, aspect, duration, frames }] }
       animationId: null,
       audioId: null,
+      sensitivity: 1,
     }
     await put('spells', spell)
-    setUserSpells((current) => [...current, spell])
+    replaceSpells([...spellsRef.current, spell])
     return spell
-  }, [])
+  }, [replaceSpells])
 
-  const updateSpell = useCallback(async (spell, changes) => {
-    const next = { ...spell, ...changes }
-    setUserSpells((current) => current.map((entry) => (entry.id === spell.id ? next : entry)))
-    await put('spells', next)
-  }, [])
+  // changes: an object, or a function of the current spell returning one.
+  const updateSpell = useCallback(
+    async (id, changes) => {
+      const current = spellsRef.current.find((spell) => spell.id === id)
+      if (!current) return
+      const next = { ...current, ...(typeof changes === 'function' ? changes(current) : changes) }
+      replaceSpells(spellsRef.current.map((spell) => (spell.id === id ? next : spell)))
+      await put('spells', next)
+    },
+    [replaceSpells],
+  )
 
-  const removeSpell = useCallback(async (spell) => {
-    await remove('spells', spell.id)
-    setUserSpells((current) => current.filter((entry) => entry.id !== spell.id))
-  }, [])
+  const removeSpell = useCallback(
+    async (id) => {
+      await remove('spells', id)
+      replaceSpells(spellsRef.current.filter((spell) => spell.id !== id))
+    },
+    [replaceSpells],
+  )
 
   const value = useMemo(
     () => ({
       loaded,
       loadError,
       library,
-      spells: [...BUILTIN_SPELLS, ...userSpells],
+      spells,
       takes,
       findFile: (kind, id) => (id ? library[kind].find((item) => item.id === id) : undefined),
       addFiles,
@@ -166,7 +219,7 @@ export default function DataProvider({ children }) {
       updateSpell,
       removeSpell,
     }),
-    [loaded, loadError, library, userSpells, takes, addFiles, updateFile, removeFile, createSpell, updateSpell, removeSpell],
+    [loaded, loadError, library, spells, takes, addFiles, updateFile, removeFile, createSpell, updateSpell, removeSpell],
   )
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>

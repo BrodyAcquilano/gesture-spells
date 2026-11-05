@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "setup": "node scripts/setup-mediapipe.js",
+    "check": "node scripts/check-gestures.js",
     "postinstall": "node scripts/setup-mediapipe.js",
     "dev": "vite",
     "build": "vite build",

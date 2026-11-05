@@ -195,7 +195,7 @@ textarea {
 
 .workspace {
   display: grid;
-  grid-template-columns: 1fr 2fr;
+  grid-template-columns: 1fr 3fr;
   gap: var(--gap);
   padding: var(--gap);
   height: 100%;
@@ -649,4 +649,81 @@ textarea:focus,
   display: flex;
   flex-direction: column;
   padding: 16px;
+}
+
+/* ---------- gesture recorder ---------- */
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+.ok {
+  color: var(--green);
+  margin: 0;
+}
+input[type='range'] {
+  accent-color: var(--magenta);
+}
+.instructions {
+  margin: 0;
+  padding-left: 1.3em;
+  max-width: 560px;
+  text-align: left;
+  line-height: 1.5;
+}
+.instructions li + li {
+  margin-top: 4px;
+}
+.countdown {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--mono);
+  font-size: 7rem;
+  color: var(--cyan);
+  text-shadow: var(--glow-cyan);
+  pointer-events: none;
+}
+.go-banner {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 18px;
+  font-family: var(--mono);
+  font-size: 1.2rem;
+  color: #ffdc5a;
+  border: 1px solid #ffdc5a;
+  border-radius: 4px;
+  background: rgba(7, 7, 13, 0.8);
+  box-shadow: 0 0 14px rgba(255, 220, 90, 0.5);
+}
+.recorder-panel {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: rgba(7, 7, 13, 0.82);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  text-align: center;
+  max-width: 90%;
+}
+.recorder-panel p {
+  margin: 0;
+}
+.audio-preview.compact {
+  flex-direction: row;
+  gap: 10px;
+}
+.audio-preview.compact .audio-icon {
+  font-size: 1.6rem;
 }

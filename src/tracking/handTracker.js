@@ -1,16 +1,6 @@
-// Wraps MediaPipe's pretrained Hand Landmarker. Given a video frame it returns,
-// for each hand it sees, 21 landmarks with x and y between 0 and 1 (fractions
-// of the frame's width and height) and a rough depth z.
-//
-// Landmark numbers used in this app:
-//   0 wrist, 4 thumb tip, 8 index fingertip, 9 base of the middle finger
+// Wraps MediaPipe's pretrained Hand Landmarker. Given a video frame it returns
+// 21 landmarks for each hand it sees (see landmarks.js).
 import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision'
-
-export const WRIST = 0
-export const THUMB_TIP = 4
-export const INDEX_TIP = 8
-export const MIDDLE_BASE = 9
-export const HAND_CONNECTIONS = HandLandmarker.HAND_CONNECTIONS
 
 const BASE = import.meta.env.BASE_URL
 

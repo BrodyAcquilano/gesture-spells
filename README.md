@@ -1,11 +1,13 @@
 ﻿# Gesture Spellbook
 
 Move your hand in front of the camera and turn the movement into a spell: a
-glowing rune trail, a burst of sparks, a fireball, with sound, drawn over the
+burst of sparks, a glowing trail, a fireball, with sound, drawn over the
 video.
 
 The app runs in the browser (Edge or Chrome). Hand tracking uses a pretrained
-model that runs on your own machine, so no video is sent anywhere.
+model that runs on your own machine, so no video is sent anywhere. Gestures
+are recognised by comparing your movement with a few recorded examples, so
+no model has to be trained.
 
 ## Running it
 
@@ -27,6 +29,7 @@ either goes missing.
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | Serves the app at http://localhost:5173 |
+| `npm run check` | Checks the gesture maths and the spark chime without a camera (see "Checking the maths") |
 | `npm run build` | Builds the app into `dist/` |
 | `npm run lint` | Checks the code with ESLint |
 | `npm run setup` | Puts the MediaPipe runtime and hand model into `public/` |
@@ -34,96 +37,188 @@ either goes missing.
 The port is fixed at 5173 on purpose. The browser keeps saved data per address,
 so the app on another port would show an empty library.
 
-## Try it now: the pinch test spell
+## Quick start: your first spell (a pinch)
 
-Go to **Spellbook → Record** and press **Start camera**. Touch your thumb and
-index finger together and sparks ✨ burst from the pinch with a "ting". Keep
-pinching and move your hand to leave a trail. The hand skeleton turns gold while
-a pinch is held.
+1. **Spellbook → Spellbook tab.** Press the green **+** to make a spell and
+   type a name, for example "Spark".
+2. Press **Record gesture**. The viewer turns into the camera. Press
+   **Start camera**, then **Record example**.
+3. During the 3-second countdown, hold your hand still and open, palm to the
+   camera, about an arm's length away, whole hand in view.
+4. At **GO**, bring your thumb tip and index fingertip firmly together,
+   quickly, and **keep holding the pinch** until the gold bar finishes.
+5. Record 3 to 5 examples this way, varying them a little: a bit faster,
+   slower, nearer, further. Press **Done**.
+6. In the details below, choose **Sparks ✨** as the animation and
+   **Spark chime** as the audio. The viewer now replays your recorded pinch
+   with the sparks where it ends, and the chime has its own player.
+7. **Record tab.** Press **Start camera** and pinch. Sparks burst from your
+   fingers and the chime plays.
 
-## How the app is laid out
+If it never casts, raise the spell's **Sensitivity** or record more examples.
+If it casts when you didn't mean it to, lower the sensitivity. The
+**closest** reading at the top of the Record view shows how near your
+movement is to a spell: it casts when the first number drops below the
+second.
 
-A header runs across the top with the title on the left and the four modes on
-the right. Each mode has its tabs along the bottom. Most tabs share one layout:
-a list on the left third, and on the right a viewer (top two thirds) above a
-details box (bottom third). The Edit tab adds a video and audio timeline
-between the two.
+## Layout
+
+A header runs across the top: the title on the left, the four modes on the
+right. Each mode has its tabs along the bottom.
+
+Most tabs share one layout: a **list** on the left quarter, and on the right
+a **viewer** (top two thirds) above a **details** box (bottom third). The
+Edit tab adds a video and audio **timeline** between the viewer and details.
+
+Anything not built yet shows a "Feature coming soon" box.
+
+## Modes and tabs
 
 ### Spellbook mode (live)
 
-Build spells first, then record while the app recognises them.
+Build spells first, then record video while the app recognises them.
 
-| Tab | What it is for |
-| --- | --- |
-| Animations | The animation library: preview files, upload new ones with the green + |
-| Audio | The audio library, the same way |
-| Spellbook | Spells. Each one links a gesture to an animation and a sound. Any part can be missing, and the viewer shows what the spell has so far |
-| Record | Live camera. Recognised spells play their effects as you move. Only the pinch test works so far |
-| Finalize | Review a live recording, fix missed spells, export *(coming soon)* |
+**Animations.** The animation library, shared with Editing mode.
+- List: every animation, built in or uploaded. The green + uploads files.
+- Viewer: plays the selected animation (silently: sound always comes from
+  audio files).
+- Details: source, format, size and date, an editable description for
+  uploaded files, Delete, and an Upload button at the bottom.
+- Built in: **Sparks ✨**, drawn by code.
+
+**Audio.** The audio library, shared with Editing mode, laid out the same way.
+The viewer is an audio player. Built in: **Spark chime**, a 1.8-second
+magical chime that fades out with the sparks.
+
+**Spellbook.** Your spells. A spell joins three separate things: a gesture
+you record, an animation and an audio file from the library.
+- List: your spells, with how many gesture examples each has. The green +
+  makes a new spell.
+- Viewer: whatever the spell has so far.
+  - Gesture: your recorded examples replay as a moving hand skeleton, one
+    after another.
+  - Animation: plays where the gesture ends, as it will when cast live. With
+    no gesture, the animation plays on its own.
+  - Audio: an audio player underneath.
+  - Markers along the top show which of gesture, animation and audio are set.
+- Details:
+  - name and description
+  - **Record gesture / Add examples**, and **Clear**
+  - sensitivity
+  - the animation and audio pickers
+  - when it was made and recorded
+- Recording a gesture turns the viewer into the camera (see the quick start).
+  Each recording is trimmed to the part where your hand moved.
+
+**Record.** Live casting. Start the camera and do a spell's gesture. When it is
+recognised, the spell's name flashes, its animation appears at your hand and
+its audio plays. Saving the video is coming next.
+
+**Finalize** *(coming soon)*. Review a live recording, fix spells that fired
+at the wrong moment or not at all, and export the video.
 
 ### Editing mode (after the fact)
 
-Record first, then find the gestures and add effects.
+Record video first, then find the gestures and add effects.
 
-| Tab | What it is for |
-| --- | --- |
-| Animations, Audio | The same shared library as in Spellbook mode |
-| Record | Record plain video along with its hand-tracking data *(coming soon)* |
-| Edit | Open a recording, select a stretch on the timeline, and apply an animation and/or sound to that stretch or to every similar gesture in the video *(controls in place, behaviour coming soon)* |
+**Animations, Audio.** The same shared library as in Spellbook mode.
 
-### Animation Builder and Audio Lab
+**Record** *(coming soon)*. Records plain video along with its hand-tracking
+data, so gestures can be found later without running the hand model again.
 
-Placeholders for later: designing animations from particles and shapes, and
-generating sounds by layering waves. Whatever they make will be saved to the
-shared library.
+**Edit.** Open a recording, select a stretch on the timeline, then apply an
+animation and/or audio to only that stretch or to every similar gesture in
+the video.
+- List: recorded videos.
+- Viewer: the open video.
+- Timeline: a video track and an audio track.
+- Details: "only the selected part" or "every similar gesture", plus the
+  animation and audio pickers.
+
+The controls are in place, but selecting and applying are coming soon.
+
+### Animation Builder and Audio Lab *(coming soon)*
+
+Designing animations from particles and shapes, and generating sounds by
+layering waves. Whatever they make will be saved to the shared library.
 
 ## The library
 
-Animations and audio come from two places, and both appear in both modes:
+Animations and audio come from three places, and all appear in both modes:
 
-- **Built in.** Files in `public/library/animations/` and `public/library/audio/`,
-  each listed in that folder's `index.json` (see `public/library/README.md`).
-  Some built-ins are generated by code instead, such as the ✨ sparks and the
-  spark "ting".
-- **Uploaded.** Files you add with the green + button or the upload button.
+- **Made by code.** The ✨ sparks are drawn live. The spark chime is computed
+  sample by sample when the app opens and saved as a WAV file, so it plays in
+  a normal audio player.
+- **Built-in files.** Files in `public/library/animations/` and
+  `public/library/audio/`, each listed in that folder's `index.json` (see
+  `public/library/README.md`).
+- **Uploaded.** Files you add with the green + or the upload button.
 
-Accepted formats are ones Edge and Chrome can play without any extra software:
+Accepted formats are ones Edge and Chrome can play without extra software:
 
 - Animations: WebM, MP4, GIF, animated WebP or PNG, and Lottie JSON. Lottie
-  files can be saved and assigned, but previewing them isn't built yet. WebM
-  can have a transparent background, which suits effects drawn over video.
+  files can be saved and assigned, but aren't drawn yet. WebM can have a
+  transparent background, which suits effects drawn over video.
 - Audio: MP3, WAV, OGG, Opus, M4A/AAC, FLAC, WebM.
 
 ## Where things are saved
 
-Uploaded files, spells and (later) recordings are saved in the browser's
-IndexedDB database for this site. They are still there next time the app is
-opened, on the same browser and the same address. The app asks the browser to
-keep the data even when disk space runs low. An export/import backup file is
-planned.
+Spells (with their recorded gestures) and uploaded files are saved in the
+browser's IndexedDB database for this site. They are still there next time
+the app is opened, in the same browser at the same address. The app asks the
+browser to keep the data even when disk space runs low. An export/import
+backup file is planned.
 
-## How gestures will be recognised
+## How gestures are recognised
 
-Two steps, neither of which needs a model to be trained:
+1. **Hand tracking (pretrained model).** MediaPipe's Hand Landmarker finds
+   up to two hands in each camera frame and gives 21 points per hand: the
+   wrist, each knuckle and each fingertip.
+2. **Turning a frame into numbers** (`src/gestures/features.js`). Each frame
+   becomes 46 numbers:
+   - the hand's shape: each point relative to the wrist, divided by the palm
+     length, so distance from the camera doesn't matter
+   - the distance from the thumb tip to each fingertip, weighted ×3. This is
+     what makes a pinch stand out.
+   - where the hand is relative to its average position, for gestures drawn
+     in the air.
 
-1. **Hand tracking (pretrained model).** MediaPipe's Hand Landmarker finds up
-   to two hands in each camera frame and gives 21 points per hand: the wrist,
-   each knuckle and each fingertip. That turns video into a short list of
-   numbers per frame.
-2. **Matching (no training).** A spell's gesture is recorded 3–5 times. A live
-   movement is compared with those examples, after both are moved to the same
-   starting point and scaled to the same size, using *dynamic time warping*.
-   That is a way of lining two movements up even when one was made faster or
-   slower than the other. The closest spell wins if it is close enough.
-   Recording the examples is the only setup.
+   Left hands are mirrored so either hand works.
+3. **Recording** (`src/gestures/trim.js`). The recorder captures 2.5 seconds
+   and keeps only the stretch where the hand moved away from its starting
+   pose and settled into its final pose.
+4. **Matching** (`src/gestures/recognizer.js`, `src/gestures/dtw.js`). Every
+   other camera frame:
+   - the last moment of live movement (about as long as the example) is
+     compared with each recorded example
+   - the comparison uses *dynamic time warping*, which lines two movements
+     up even when one is faster in places
+   - if the closest spell is under its limit, it casts, followed by a
+     1-second pause before it can cast again
+   - each spell's limit comes from how closely its own examples agree with
+     each other, scaled by its sensitivity setting
+   - a movement much smaller than the examples is skipped, so a still hand
+     never casts.
 
-Simple fixed rules handle hand shapes: the pinch test is one. MediaPipe also
-has a ready-made Gesture Recognizer for seven poses (fist, open palm,
-pointing up, thumbs up and down, victory, "I love you") that could serve as
-extra triggers. If matching against examples turns out not to be accurate
-enough, a small network can be trained in the browser automatically from the
-same recorded examples, in seconds. Online services aren't a good fit: none
-recognise custom gestures, and sending live video away would add delay.
+## Checking the maths
+
+`npm run check` tests the recogniser on synthetic hands (no camera) and the
+spark chime. Current results:
+
+| Test | Result |
+| --- | --- |
+| DTW on small hand-worked cases | exact |
+| Recorded pinches trimmed from 2.5 s | to 0.37–0.40 s |
+| Limit learned from 3 examples | 0.251 |
+| Live pinch | casts once, 50 ms before it fully closes (distance 0.171) |
+| Slower live pinch | casts (0.204) |
+| Half pinch, fingers stop apart | no cast (0.411) |
+| Closing into a fist | no cast (0.604) |
+| Still hand, drifting hand, waving | no cast (too little hand-shape movement) |
+| Spark chime | 1.80 s, peak 0.8, ends in silence, loudness falls 0.215 → 0.007 after the bells peak |
+
+Synthetic hands are tidier than real ones, so real-camera thresholds may need
+the sensitivity slider.
 
 ## Packages
 
@@ -131,11 +226,11 @@ recognise custom gestures, and sending live video away would add delay.
 | --- | --- |
 | `@mediapipe/tasks-vision` | Google's pretrained hand-tracking model and its WebAssembly runtime (Apache-2.0). Runs locally, on the GPU when it can |
 | `react`, `react-dom` | The page |
-| `react-router-dom` | The modes and tabs are routes, e.g. `/spellbook/audio` |
+| `react-router-dom` | Modes and tabs are routes, e.g. `/spellbook/audio` |
 | `vite`, `eslint` and plugins | Development server, build and lint (development only) |
 
 Everything else comes from the browser: camera (`getUserMedia`), drawing
-(canvas), sound (Web Audio), recording (`MediaRecorder`) and storage
+(canvas), sound (`<audio>`), recording (`MediaRecorder`, next) and storage
 (IndexedDB).
 
 ## Code layout
@@ -144,21 +239,25 @@ Everything else comes from the browser: camera (`getUserMedia`), drawing
 src/
   App.jsx              routes for the four modes
   modes/               each mode and its list of tabs
-  tabs/                the tab screens (library, spells, record, finalize, edit)
-  components/          header, tab bar, the list/viewer/details layout, previews,
-                       PinchCaster (the live camera test)
-  tracking/            MediaPipe wrapper, pinch detection
-  effects/             sparks particle system, synthesised spark sound
+  tabs/                the tab screens (library, spellbook, record, finalize, edit)
+  components/          header, tab bar, list/viewer/details layout, previews,
+                       GestureRecorder, GesturePlayback, LiveCaster
+  tracking/            MediaPipe wrapper, camera loop hook, landmark helpers, skeleton drawing
+  gestures/            features, DTW, trimming, the recogniser
+  effects/             sparks particles, spark chime synthesis, WAV encoder, effect player
   library/             shared data (library files, spells), accepted formats, built-ins
   storage/db.js        small IndexedDB wrapper
 public/library/        built-in animation and audio files
-scripts/               setup script for the MediaPipe runtime and model
+scripts/               MediaPipe setup, maths checks
 ```
 
 ## Next steps
 
-1. Record and save video (with microphone and effect sounds) in both Record tabs.
-2. Record a gesture for a spell, and play it back in the spellbook viewer.
-3. Match live movement against recorded gestures, so spells fire by themselves.
-4. Editing: video and audio timeline, selecting a stretch, applying effects, export.
-5. Default animations and sounds, then the Animation Builder and Audio Lab.
+1. Record and save video, with microphone and effect sounds, in both Record
+   tabs.
+2. Finalize: play back a live recording with its effects, and export.
+3. Editing: video and audio timeline, select a stretch, apply effects, find
+   similar gestures, export.
+4. Export/import the spellbook as a backup file.
+5. More default animations and sounds, then the Animation Builder and Audio
+   Lab.

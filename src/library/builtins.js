@@ -1,8 +1,10 @@
 // Library entries that come with the app.
 //
-// Procedural entries are drawn or synthesised by code in src/effects/ rather
-// than loaded from a file. File entries are listed in
-// public/library/<kind>/index.json and served from that folder.
+// Procedural entries are made by code in src/effects/ rather than loaded from
+// a file. Animations are drawn live. Audio is rendered once when the app
+// starts into a real WAV file, so it plays in an ordinary audio player. File
+// entries are listed in public/library/<kind>/index.json and served from there.
+import { renderSparkChime } from '../effects/sparkSound.js'
 
 export const PROCEDURAL = {
   animations: [
@@ -10,31 +12,20 @@ export const PROCEDURAL = {
       id: 'builtin:sparks',
       name: 'Sparks ✨',
       procedural: 'sparks',
-      description: 'A burst of ✨ sparks, drawn by code (src/effects/sparks.js). Used by the pinch test spell.',
+      description: 'A burst of ✨ sparks that fly out, fall and fade over about 1.3 s. Drawn by code (src/effects/sparks.js).',
     },
   ],
   audio: [
     {
-      id: 'builtin:spark-ting',
-      name: 'Spark ting',
-      procedural: 'spark-ting',
-      description: 'A rising two-tone ting synthesised with Web Audio (src/effects/sparkSound.js).',
+      id: 'builtin:spark-chime',
+      name: 'Spark chime',
+      procedural: 'spark-chime',
+      render: renderSparkChime,
+      description:
+        'A rippling bell chime with a sparkly shimmer and an echo, about 1.8 s long, fading out like the sparks animation. Computed sample by sample in JavaScript and saved as a WAV file (src/effects/sparkSound.js).',
     },
   ],
 }
-
-export const BUILTIN_SPELLS = [
-  {
-    id: 'builtin:pinch-spark',
-    name: 'Pinch spark (test)',
-    description:
-      'Touch thumb and index finger together to throw sparks. Try it live in the Record tab. It uses a fixed pinch rule rather than a recorded gesture.',
-    gesture: { kind: 'pinch', label: 'Pinch (thumb + index finger)' },
-    animationId: 'builtin:sparks',
-    audioId: 'builtin:spark-ting',
-    builtIn: true,
-  },
-]
 
 export async function loadFileManifest(kind) {
   const base = `${import.meta.env.BASE_URL}library/${kind}/`
