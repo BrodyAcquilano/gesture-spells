@@ -376,6 +376,15 @@ const growthLevel = (from, to) => {
 const whileGrowing = growthLevel(0.2, 1.7)
 const asLeavesOpen = growthLevel(2.6, 3.1)
 check('growth creaks loudest while the branch grows, softer as the leaves open', whileGrowing > 2 * asLeavesOpen && asLeavesOpen > 0, `${whileGrowing.toFixed(3)} then ${asLeavesOpen.toFixed(3)}`)
+// Separate creaks with gaps between them, not one steady buzz (a steady,
+// even buzz is what sounds like plastic rather than wood).
+const creaking = [0.2, 0.7, 1.2, 1.55].map((t) => growthLevel(t - 0.05, t + 0.05))
+const between = [[0.51, 0.545], [0.94, 0.975]].map(([from, to]) => growthLevel(from, to))
+check(
+  'growth creaks come one at a time, with quiet gaps between them',
+  Math.max(...between) < 0.2 * Math.min(...creaking),
+  `creaks ${creaking.map((v) => v.toFixed(3)).join(' ')}, gaps ${between.map((v) => v.toFixed(3)).join(' ')}`,
+)
 const growthWav = await renderGrowth()
 check('growth WAV has header + 16-bit stereo samples', growthWav.blob.size === 44 + growthLength * 4, `${growthWav.blob.size} bytes`)
 

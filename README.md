@@ -132,9 +132,11 @@ audio player. Comes with:
   lower and longer, like a tape slowing down) over a low tone sliding down,
   ending with a soft low bell, 4.2 s. The ticks fall exactly when the Clock
   animation's second hand jumps (both use `src/effects/clockTiming.js`).
-- **Growth**: wood creaking and groaning with a few sharp cracks while the
-  branch grows, softening into a gentle leafy rustle as the sprout opens,
-  3.6 s.
+- **Growth**: wood creaking while the branch grows: four separate creaks,
+  each a run of tiny stick-and-slip scrapes that starts slow (single ticks),
+  speeds up and slows again, unevenly, ringing through the low resonances of
+  wood with a deep groan, plus dry cracks (a quick cluster of clicks over a
+  dull knock). Two soft creaks and a leafy rustle as the sprout opens. 3.6 s.
 
 **Spellbook.** Spells. A spell joins three separate things: a recorded
 gesture, an animation and an audio file from the library.
@@ -293,7 +295,7 @@ Each animation that comes with the app is drawn by code on a canvas, every frame
 | Brightness | the index fingertip, following it as it moves | A flash ring, a large warm halo, a white-hot core, two crossing light streaks and drifting specks, added together with additive blending so overlapping light goes towards white. Full brightness for about 2 s, then it fades out by about 3 s |
 | Fireball | the palm | A ball (white-hot to yellow, orange and deep red) that grows and drifts towards the centre as it "comes at" the camera, throwing off flame particles that cool from yellow to red to smoke, then bursts into embers |
 | Clock | just above the middle fingertip, following it | A dark glass face in a brass ring with Roman numerals turned towards the centre and 60 minute lines, gothic hands (spade tips, an open ring and a crossbar, a round counterweight) and a thin red second hand. The second hand jumps one numeral on every tick, fast at first, each gap 17% longer than the last, until it stops after about 3.4 s; the minute and hour hands glide along with it, blurred while fast. Cyan rings spread slowly from it, and it fades out by about 4.4 s. The face and hands are drawn once into images and only turned and stamped each frame |
-| Sprout | along the whole index finger, following and bending with it | In stages: bark creeps up the finger from the knuckle to the tip (0.9 s), the branch grows on past the fingertip by half a finger's length, curving slightly (to 1.7 s), then a green shoot opens two leaves one after the other with a bud between them and specks of green light (to 3.3 s). It sways gently and fades out by about 5.2 s. The bark is one outline drawn along the finger's joints each frame; the leaf is drawn once into an image and stamped |
+| Sprout | along the whole index finger, following and bending with it | In stages: bark creeps up the finger from the knuckle to the tip (0.9 s), the branch grows on past the fingertip by half a finger's length, curving slightly (to 1.7 s), then a green shoot opens two leaves one after the other with a bud between them and specks of green light (to 3.3 s). It sways gently and fades out by about 5.2 s. The bark is an outline along the finger's joints with wood grain drawn inside it each frame: wavy light and dark streaks running along the wood that break off now and then, a few deeper furrows, three knots the grain bends around, an uneven edge and shading so it looks round. The pattern is fixed to the wood, so it doesn't slide as the branch grows. The leaf is drawn once into an image and stamped |
 
 Uploaded video and image files appear centred on the pinch point.
 
@@ -470,7 +472,7 @@ Current results:
 | Spark-Chime | 1.80 s, peak 0.8, ends in silence; loudness falls 0.239 → 0.004 over 0.3 s steps |
 | Fire-Crackle | 2.00 s, peak 0.85, ends in silence; crackle peaks 6.9× the average level; loudest at the burst, then dies away |
 | Clock-Tick | 4.20 s, peak 0.8, ends in silence; 16 ticks, gaps growing 0.06 → 0.54 s; every tick at least 5.5× louder than the moment before it |
-| Growth | 3.60 s, peak 0.8, ends in silence; creaking 5× louder while the branch grows than as the leaves open |
+| Growth | 3.60 s, peak 0.8, ends in silence; creaking about 4× louder while the branch grows than as the leaves open; separate creaks with quiet gaps (no steady buzz) |
 
 ## Packages
 

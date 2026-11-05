@@ -12,8 +12,10 @@
 //                specks of green light
 //   then it holds, sways gently, and fades out by about 5.2 s
 //
-// The bark is one filled outline per frame (a few straight lines, no
-// shadows); the leaf is drawn once into a small image and stamped twice.
+// The bark is an outline along the finger with wood grain drawn inside it
+// each frame (wavy streaks along the wood, deeper furrows, knots the grain
+// bends around, an uneven edge and rounded shading), all plain lines, no
+// shadows; the leaf is drawn once into a small image and stamped twice.
 
 const FINGER_UNTIL = 0.9
 const BRANCH_UNTIL = 1.7
@@ -26,7 +28,6 @@ const EXTEND = 0.5 // the branch past the fingertip, as a share of the finger's 
 
 const BARK = '#6b4423'
 const BARK_DARK = '#2e1a0c'
-const BARK_LIGHT = '#a7773f'
 
 const clamp01 = (x) => Math.max(0, Math.min(1, x))
 const ease = (x) => 1 - (1 - clamp01(x)) ** 3
@@ -78,6 +79,170 @@ function leafSprite(height) {
   }
   ctx.stroke()
   return canvas
+}
+
+// Smooth, repeatable wobble between about -1 and 1 (a few sine waves added
+// up), so the grain and the rough edge stay fixed to the wood as it grows.
+function wobble(x) {
+  return (Math.sin(x) + 0.6 * Math.sin(2.13 * x + 1.7) + 0.3 * Math.sin(4.37 * x + 0.3)) / 1.9
+}
+
+// Knots: where along the wood (in finger lengths from the knuckle) and how
+// far across (-0.5 one edge, 0.5 the other).
+const KNOTS = [
+  [0.33, 0.18],
+  [0.66, -0.22],
+  [1.18, 0.12],
+]
+// Grain streaks running along the wood: how far across, and light or dark.
+const GRAIN = [-0.4, -0.31, -0.22, -0.12, -0.03, 0.06, 0.16, 0.25, 0.34, 0.42].map((across, j) => ({ across, dark: j % 3 !== 1, seed: j * 7.3 }))
+// Deeper cracks in the bark.
+const FURROWS = [-0.27, 0.02, 0.29]
+
+// Bark with wood grain along a path of points (knuckle first) with a width
+// at each. Everything is measured in finger lengths along the wood, so the
+// pattern doesn't slide as the branch grows or the finger moves.
+function drawBark(ctx, shown, widths, fingerLength, alpha) {
+  // Resample into small steps.
+  const step = Math.max(1.5, fingerLength * 0.02)
+  const samples = []
+  let along = 0
+  for (let i = 1; i < shown.length; i++) {
+    const d = sub(shown[i], shown[i - 1])
+    const seg = length(d)
+    const count = Math.max(1, Math.ceil(seg / step))
+    const dirHere = unit(d)
+    const normal = [-dirHere[1], dirHere[0]]
+    for (let k = i === 1 ? 0 : 1; k <= count; k++) {
+      const f = k / count
+      samples.push({
+        p: add(shown[i - 1], scale(d, f)),
+        w: widths[i - 1] + (widths[i] - widths[i - 1]) * f,
+        n: normal,
+        s: (along + seg * f) / fingerLength,
+      })
+    }
+    along += seg
+  }
+  if (samples.length < 2) return
+  // Smooth the normals at the joints.
+  for (let i = 1; i < samples.length - 1; i++) samples[i].n = unit(add(samples[i - 1].n, samples[i + 1].n))
+
+  // Where a point across the wood is: across from -0.5 to 0.5 of the width.
+  const at = (sample, across) => add(sample.p, scale(sample.n, sample.w * across))
+
+  // The outline, a little uneven on each side, rounded at the growing end.
+  const edge = (sample, sign) => 0.5 * sign * (1 + 0.07 * wobble(sample.s * 31 + (sign > 0 ? 0 : 50)) + 0.04 * wobble(sample.s * 73 + sign))
+  const outline = new Path2D()
+  samples.forEach((sample, i) => {
+    const q = at(sample, edge(sample, 1))
+    if (i === 0) outline.moveTo(...q)
+    else outline.lineTo(...q)
+  })
+  const last = samples[samples.length - 1]
+  const endAngle = Math.atan2(last.n[1], last.n[0])
+  outline.arc(last.p[0], last.p[1], last.w / 2, endAngle, endAngle + Math.PI, true)
+  for (let i = samples.length - 1; i >= 0; i--) outline.lineTo(...at(samples[i], edge(samples[i], -1)))
+  outline.closePath()
+
+  ctx.save()
+  ctx.globalAlpha = alpha
+  ctx.fillStyle = BARK
+  ctx.fill(outline)
+  ctx.clip(outline)
+
+  const line = (across, from, to) => {
+    ctx.beginPath()
+    for (let i = from; i <= to; i++) {
+      const q = at(samples[i], across(samples[i]))
+      if (i === from) ctx.moveTo(...q)
+      else ctx.lineTo(...q)
+    }
+    ctx.stroke()
+  }
+  // Runs of samples where a streak shows (it breaks off in places).
+  const runs = (shows) => {
+    const out = []
+    let start = -1
+    samples.forEach((sample, i) => {
+      if (shows(sample) && start === -1) start = i
+      if ((!shows(sample) || i === samples.length - 1) && start !== -1) {
+        if (i - start >= 2) out.push([start, i])
+        start = -1
+      }
+    })
+    return out
+  }
+
+  // Rounded look: shade along one side, light along the other.
+  ctx.lineCap = 'round'
+  ctx.strokeStyle = 'rgba(30, 16, 6, 0.45)'
+  ctx.lineWidth = fingerLength * 0.07
+  line(() => -0.38, 0, samples.length - 1)
+  ctx.strokeStyle = 'rgba(190, 140, 80, 0.3)'
+  ctx.lineWidth = fingerLength * 0.04
+  line(() => 0.2, 0, samples.length - 1)
+
+  // How far a knot pushes the grain aside near it.
+  const knotPush = (sample, across) => {
+    let push = 0
+    for (const [ks, ka] of KNOTS) {
+      const near = Math.exp(-(((sample.s - ks) / 0.07) ** 2)) * Math.max(0, 1 - Math.abs(across - ka) / 0.3)
+      push += Math.sign(across - ka || 1) * 0.13 * near
+    }
+    return push
+  }
+
+  // Grain: wavy streaks along the wood, light and dark, breaking off now and then.
+  for (const grain of GRAIN) {
+    const across = (sample) => {
+      const a = grain.across + 0.035 * wobble(sample.s * 9 + grain.seed)
+      return a + knotPush(sample, a)
+    }
+    ctx.strokeStyle = grain.dark ? 'rgba(48, 26, 10, 0.6)' : 'rgba(170, 120, 66, 0.45)'
+    ctx.lineWidth = Math.max(1, fingerLength * (grain.dark ? 0.012 : 0.009))
+    for (const [from, to] of runs((sample) => wobble(sample.s * 5.3 + grain.seed * 1.9) > -0.35)) line(across, from, to)
+  }
+
+  // Furrows: deeper, darker cracks in the bark, in broken lengths.
+  ctx.strokeStyle = 'rgba(26, 14, 5, 0.75)'
+  ctx.lineWidth = Math.max(1, fingerLength * 0.022)
+  FURROWS.forEach((base, j) => {
+    const across = (sample) => {
+      const a = base + 0.05 * wobble(sample.s * 6 + j * 11)
+      return a + knotPush(sample, a)
+    }
+    for (const [from, to] of runs((sample) => wobble(sample.s * 3.1 + j * 4.7) > 0.05)) line(across, from, to)
+  })
+
+  // Knots: dark ovals along the wood with a lighter ring, once grown to.
+  for (const [ks, ka] of KNOTS) {
+    const sample = samples.find((x) => x.s >= ks)
+    if (!sample || last.s - ks < 0.04) continue
+    const centre = at(sample, ka)
+    const angle = Math.atan2(sample.n[1], sample.n[0]) // the oval lies along the wood
+    ctx.save()
+    ctx.translate(...centre)
+    ctx.rotate(angle)
+    ctx.fillStyle = '#2a170a'
+    ctx.strokeStyle = 'rgba(176, 124, 68, 0.7)'
+    ctx.lineWidth = Math.max(1, fingerLength * 0.01)
+    ctx.beginPath()
+    ctx.ellipse(0, 0, sample.w * 0.1, sample.w * 0.17, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.beginPath()
+    ctx.ellipse(0, 0, sample.w * 0.15, sample.w * 0.25, 0, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.restore()
+  }
+  ctx.restore()
+
+  ctx.save()
+  ctx.globalAlpha = alpha
+  ctx.strokeStyle = BARK_DARK
+  ctx.lineWidth = Math.max(1, fingerLength * 0.014)
+  ctx.stroke(outline)
+  ctx.restore()
 }
 
 // x, y: the index fingertip; size: the canvas height. Without a hand (the
@@ -143,65 +308,7 @@ export function createSprout(x, y, size) {
 
       ctx.save()
       ctx.globalAlpha = alpha
-      if (shown.length > 1) {
-        // Bark: a tapering outline with a rounded growing end.
-        const normals = shown.map((p, i) => {
-          const a = shown[Math.max(0, i - 1)]
-          const b = shown[Math.min(shown.length - 1, i + 1)]
-          const d = unit(sub(b, a))
-          return [-d[1], d[0]]
-        })
-        const outline = new Path2D()
-        shown.forEach((p, i) => {
-          const q = add(p, scale(normals[i], widths[i] / 2))
-          if (i === 0) outline.moveTo(...q)
-          else outline.lineTo(...q)
-        })
-        const end = shown[shown.length - 1]
-        const endAngle = Math.atan2(normals[normals.length - 1][1], normals[normals.length - 1][0])
-        outline.arc(end[0], end[1], widths[widths.length - 1] / 2, endAngle, endAngle + Math.PI, true)
-        for (let i = shown.length - 1; i >= 0; i--) outline.lineTo(...add(shown[i], scale(normals[i], -widths[i] / 2)))
-        outline.closePath()
-        ctx.fillStyle = BARK
-        ctx.fill(outline)
-        ctx.strokeStyle = BARK_DARK
-        ctx.lineWidth = Math.max(1, fingerLength * 0.012)
-        ctx.stroke(outline)
-        // A lighter streak down one side, where the light catches it.
-        ctx.strokeStyle = BARK_LIGHT
-        ctx.globalAlpha = alpha * 0.7
-        ctx.lineWidth = Math.max(1, fingerLength * 0.025)
-        ctx.beginPath()
-        shown.forEach((p, i) => {
-          const q = add(p, scale(normals[i], widths[i] * 0.22))
-          if (i === 0) ctx.moveTo(...q)
-          else ctx.lineTo(...q)
-        })
-        ctx.stroke()
-        // Bark rings: short dark strokes across it, at fixed places.
-        ctx.globalAlpha = alpha * 0.8
-        ctx.strokeStyle = BARK_DARK
-        ctx.lineWidth = Math.max(1, fingerLength * 0.012)
-        ctx.beginPath()
-        let along = 0
-        let next = 0
-        const marks = [0.12, 0.27, 0.41, 0.58, 0.72, 0.86, 1.05, 1.25]
-        for (let i = 1; i < shown.length; i++) {
-          const seg = length(sub(shown[i], shown[i - 1]))
-          while (next < marks.length && marks[next] * fingerLength <= along + seg) {
-            const k = (marks[next] * fingerLength - along) / (seg || 1)
-            const p = add(shown[i - 1], scale(sub(shown[i], shown[i - 1]), k))
-            const w = widths[i - 1] + (widths[i] - widths[i - 1]) * k
-            const n = normals[i]
-            ctx.moveTo(...add(p, scale(n, w * 0.38)))
-            ctx.quadraticCurveTo(...add(p, scale(dir, w * 0.15)), ...add(p, scale(n, -w * 0.3)))
-            next++
-          }
-          along += seg
-        }
-        ctx.stroke()
-        ctx.globalAlpha = alpha
-      }
+      if (shown.length > 1) drawBark(ctx, shown, widths, fingerLength, alpha)
 
       // The shoot, leaves and bud at the branch's end.
       if (t > BRANCH_UNTIL) {

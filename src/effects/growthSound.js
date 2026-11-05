@@ -6,20 +6,23 @@
 // sparkSound.js) and saved as a WAV file.
 //
 // Layers:
-//   creak   wood creaks because it sticks and slips: a train of tiny clicks
-//           whose rate wanders between about 25 and 110 a second, sent
-//           through a few resonant filters (the "body" of the wood). The
-//           wandering rate is what makes it groan rather than buzz.
-//   cracks  short, sharp bursts of noise through a higher filter, at a few
-//           moments while the branch grows: fibres snapping
+//   creaks  wood creaks because its fibres stick and slip: each slip is a
+//           tiny scrape. A creak is a run of these, slow at first (single
+//           ticks you can hear apart), speeding up and slowing again like a
+//           door or a bending branch, never perfectly even. The scrapes ring
+//           through a few low, uneven resonances (the wood's body) and a
+//           deep groan. Creaks come one at a time with gaps, not as a steady
+//           buzz: an even, continuous buzz is what sounds like plastic.
+//   cracks  dry fibres snapping: a quick cluster of sharp clicks with a dull
+//           knock under the first
 //   rustle  soft filtered noise, swelling as the leaves unfold
+//   room    two faint, short echoes, so it sounds like a solid thing in a
+//           space rather than a thin sound in your ear
 import { encodeWav } from './wav.js'
 
 export const GROWTH_SECONDS = 3.6
 export const SAMPLE_RATE = 44100
 const FADE_SECONDS = 0.4
-const BRANCH_UNTIL = 1.7
-export const CREAK_GAIN = 10 // the clicks through narrow filters come out quiet; this brings the creak up to the cracks
 
 function seededRandom(seed) {
   return () => {
@@ -51,61 +54,82 @@ function bandPass(frequency, q) {
   }
 }
 
-// How loud the creaking is over time: swells in, strongest while the branch
-// grows, then dies down as the leaves open.
-export function creakLevel(t) {
-  if (t < 0.15) return t / 0.15
-  if (t < BRANCH_UNTIL) return 1
-  return Math.max(0, 1 - (t - BRANCH_UNTIL) / 1.2) * 0.9 + 0.1 * Math.exp(-(t - BRANCH_UNTIL) / 0.5)
-}
-
-function rustleLevel(t) {
-  if (t < 1.8) return 0
-  if (t < 3.0) return Math.sin((Math.PI * (t - 1.8)) / 2.4)
-  return Math.max(0, Math.sin((Math.PI * (t - 1.8)) / 2.4))
-}
+// The creaks: [start (s), length (s), slowest and fastest slips a second,
+// loudness]. Four strong ones while the branch grows, two soft ones as the
+// sprout opens.
+const CREAKS = [
+  [0.05, 0.45, 9, 38, 1],
+  [0.55, 0.38, 14, 55, 0.85],
+  [0.98, 0.5, 8, 30, 1],
+  [1.38, 0.34, 12, 48, 0.8],
+  [1.95, 0.4, 7, 22, 0.35],
+  [2.55, 0.28, 10, 26, 0.2],
+]
+// The wood's body: resonances (Hz), how sharp, how loud.
+const BODY = [
+  [140, 7, 0.9], // the deep groan
+  [260, 4, 1],
+  [545, 5, 0.75],
+  [1010, 6, 0.45],
+  [1870, 5, 0.25],
+]
+const CRACKS = [0.32, 0.78, 1.18, 1.52]
+const CREAK_GAIN = 9 // scrapes through narrow resonances come out quiet; this sets the creaks just under the cracks
 
 export function synthesiseGrowth() {
   const length = Math.ceil(GROWTH_SECONDS * SAMPLE_RATE)
   const random = seededRandom(77)
-  const left = new Float32Array(length)
-  const right = new Float32Array(length)
+  const dry = [new Float32Array(length), new Float32Array(length)]
 
-  // Creak: clicks at a wandering rate through three wood resonances.
-  const bodies = [bandPass(310, 6), bandPass(620, 8), bandPass(1180, 10)]
-  let phase = 0
-  let rate = 50
-  let target = 50
-  for (let i = 0; i < length; i++) {
-    const t = i / SAMPLE_RATE
-    if (random() < 6 / SAMPLE_RATE) target = 25 + random() * 85 // a new wander every ~0.17 s
-    rate += (target - rate) * 0.0004
-    phase += rate / SAMPLE_RATE
-    let click = 0
-    if (phase >= 1) {
-      phase -= 1
-      click = 0.6 + random() * 0.8
+  // Creaks.
+  for (const [start, duration, slow, fast, loudness] of CREAKS) {
+    const shift = 0.9 + random() * 0.2 // each creak in a slightly different place in the wood
+    const body = BODY.map(([f, q, g]) => ({ filter: bandPass(f * shift, q), gain: g }))
+    const pan = random() * 0.8 - 0.4
+    const first = Math.round(start * SAMPLE_RATE)
+    const count = Math.round(duration * SAMPLE_RATE)
+    const excitation = new Float32Array(count)
+    // Place the slips: slow, faster in the middle, slow again, uneven.
+    let at = 0
+    while (at < duration) {
+      const f = at / duration
+      const rate = slow + (fast - slow) * Math.sin(Math.PI * f)
+      const strength = (0.5 + random() * 0.5) * Math.sin(Math.PI * f) ** 0.6
+      const index = Math.round(at * SAMPLE_RATE)
+      // A slip: a tiny scrape of noise, about 2 ms.
+      for (let k = 0; k < 90 && index + k < count; k++) excitation[index + k] += strength * (random() * 2 - 1) * Math.exp(-k / 25)
+      at += (1 / rate) * (0.75 + random() * 0.5)
     }
-    const level = creakLevel(t) * (0.7 + 0.3 * Math.sin(2 * Math.PI * 1.3 * t))
-    const value = CREAK_GAIN * level * (2.2 * bodies[0](click) + 1.4 * bodies[1](click) + 0.8 * bodies[2](click))
-    left[i] += value
-    right[i] += value * 0.85
+    for (let k = 0; k < count + 4000 && first + k < length; k++) {
+      const x = k < count ? excitation[k] : 0
+      let value = 0
+      for (const { filter, gain } of body) value += gain * filter(x)
+      value *= loudness * CREAK_GAIN
+      dry[0][first + k] += value * (1 - pan)
+      dry[1][first + k] += value * (1 + pan)
+    }
   }
 
-  // Cracks: five, spread over the branch's growth.
-  for (const at of [0.25, 0.6, 0.85, 1.2, 1.55]) {
-    const start = Math.round((at + random() * 0.08) * SAMPLE_RATE)
-    const filter = bandPass(1800 + random() * 1500, 2)
-    const level = 0.8 + random() * 0.6
+  // Cracks: a cluster of 3–5 sharp clicks within about 40 ms, with a dull
+  // knock under the first.
+  for (const crackAt of CRACKS) {
+    const first = Math.round((crackAt + random() * 0.05) * SAMPLE_RATE)
+    const sharp = bandPass(2600 + random() * 2000, 1.4)
+    const knock = bandPass(170 + random() * 60, 2.5)
+    const clicks = 3 + Math.floor(random() * 3)
+    const times = Array.from({ length: clicks }, (_, i) => (i === 0 ? 0 : Math.round(random() * 0.04 * SAMPLE_RATE))).sort((a, b) => a - b)
     const pan = random() * 1.2 - 0.6
-    const samples = Math.round(0.06 * SAMPLE_RATE)
-    for (let k = 0; k < samples && start + k < length; k++) {
-      const s = k / SAMPLE_RATE
-      // Two or three quick snaps in a row, like fibres giving way.
-      const snaps = Math.exp(-s / 0.006) + 0.6 * Math.exp(-Math.max(0, s - 0.018) / 0.005) * (s > 0.018 ? 1 : 0)
-      const value = filter((random() * 2 - 1) * snaps) * level
-      left[start + k] += value * (1 - pan) * 0.7
-      right[start + k] += value * (1 + pan) * 0.7
+    const span = Math.round(0.12 * SAMPLE_RATE)
+    const excitation = new Float32Array(span)
+    times.forEach((time, i) => {
+      const level = i === 0 ? 1 : 0.3 + random() * 0.5
+      for (let k = 0; k < 40 && time + k < span; k++) excitation[time + k] += level * (random() * 2 - 1) * Math.exp(-k / 8)
+    })
+    for (let k = 0; k < span && first + k < length; k++) {
+      const knockIn = k < 30 ? (random() * 2 - 1) * Math.exp(-k / 10) : 0
+      const value = 1.1 * sharp(excitation[k]) + 1.5 * knock(knockIn)
+      dry[0][first + k] += value * (1 - pan)
+      dry[1][first + k] += value * (1 + pan)
     }
   }
 
@@ -113,10 +137,31 @@ export function synthesiseGrowth() {
   const rustles = [bandPass(3500, 1.2), bandPass(3900, 1.2)]
   for (let i = 0; i < length; i++) {
     const t = i / SAMPLE_RATE
+    const swell = t < 1.8 ? 0 : Math.max(0, Math.sin((Math.PI * (t - 1.8)) / 2.4))
     const flutter = 0.6 + 0.4 * Math.sin(2 * Math.PI * 7 * t + Math.sin(2 * Math.PI * 1.7 * t))
-    const level = 0.06 * rustleLevel(t) * flutter
-    left[i] += level * rustles[0](random() * 2 - 1)
-    right[i] += level * rustles[1](random() * 2 - 1)
+    const level = 0.05 * swell * flutter
+    dry[0][i] += level * rustles[0](random() * 2 - 1)
+    dry[1][i] += level * rustles[1](random() * 2 - 1)
+  }
+
+  // Room: two faint short echoes.
+  const left = new Float32Array(length)
+  const right = new Float32Array(length)
+  const echoes = [
+    [Math.round(0.023 * SAMPLE_RATE), 0.22],
+    [Math.round(0.041 * SAMPLE_RATE), 0.12],
+  ]
+  for (let i = 0; i < length; i++) {
+    let l = dry[0][i]
+    let r = dry[1][i]
+    for (const [delay, gain] of echoes) {
+      if (i >= delay) {
+        l += gain * dry[1][i - delay]
+        r += gain * dry[0][i - delay]
+      }
+    }
+    left[i] = l
+    right[i] = r
   }
 
   // Normalise to a comfortable peak, then fade the end to exact silence.

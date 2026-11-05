@@ -27,6 +27,6 @@
     "id": "builtin:growth",
     "name": "Growth",
     "procedural": "growth",
-    "description": "Wood creaking and groaning with a few sharp cracks while the branch grows, softening into a gentle leafy rustle as the sprout opens (3.6 s). Computed sample by sample in JavaScript (src/effects/growthSound.js)."
+    "description": "Wood creaking as the branch grows: separate creaks of stick-and-slip scrapes, slow then faster then slow, with a deep groan and dry cracks, then soft creaks and a leafy rustle as the sprout opens (3.6 s). Computed sample by sample in JavaScript (src/effects/growthSound.js)."
   }
 ]
