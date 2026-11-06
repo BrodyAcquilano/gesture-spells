@@ -1,30 +1,34 @@
-// "Sprout": the index finger turns into a branch, which grows on past the
-// fingertip and opens into a sprout with two leaves (about 5 s in all). It is
-// drawn along the finger's joints every frame, so it bends and moves with the
-// finger (setFinger).
+// "Sprout": a short wooden branch grows out of the index fingertip, a green
+// stem grows out of the top of the wood, and two leaves unfurl from the stem,
+// one to each side, like a seedling (about 5 s in all). It points the way the
+// finger points and moves with it (setFinger).
 //
-// Stages:
-//   0   – 0.9 s  bark creeps up the finger from the knuckle to the tip
-//   0.9 – 1.7 s  the branch grows on past the fingertip, about half a finger
-//                length, curving slightly
-//   1.7 – 3.3 s  a green shoot comes out of the branch's end and two leaves
-//                slowly unfold from it, with a bud between them and a few
-//                specks of green light
+// Sizes, in finger lengths: the wood about 0.3 long, the green sprout (stem
+// and leaves) about the same again on top.
+//
+// Stages (timed with the Growth sound: creaking while the wood grows, a
+// rustle as the leaves open):
+//   0   – 1.7 s  the wood grows out of the fingertip, curving slightly
+//   1.7 – 2.1 s  a green stem grows out of the top of the wood
+//   2.1 – 3.3 s  two leaves unfurl from the top of the stem, one after the
+//                other, opening sideways as they grow, with a few specks of
+//                green light
 //   then it holds, sways gently, and fades out by about 5.2 s
 //
-// The bark is an outline along the finger with wood grain drawn inside it
-// each frame (wavy streaks along the wood, deeper furrows, knots the grain
-// bends around, an uneven edge and rounded shading), all plain lines, no
-// shadows; the leaf is drawn once into a small image and stamped twice.
+// The wood is an outline with wood grain drawn inside it each frame (wavy
+// streaks along the wood, deeper furrows, knots the grain bends around, an
+// uneven edge and rounded shading), all plain lines, no shadows; the leaf is
+// drawn once into a small image and stamped twice.
 
-const FINGER_UNTIL = 0.9
-const BRANCH_UNTIL = 1.7
-const SHOOT_UNTIL = 2.1
+const WOOD_UNTIL = 1.7
+const STEM_UNTIL = 2.1
 const LEAVES_UNTIL = 3.3
 const HOLD_UNTIL = 4.6
 const FADE = 0.6
 const END = HOLD_UNTIL + FADE
-const EXTEND = 0.5 // the branch past the fingertip, as a share of the finger's length
+const WOOD = 0.3 // the wood's length, in finger lengths
+const STEM = 0.17 // the green stem's length
+const LEAF = 0.24 // each leaf's length
 
 const BARK = '#6b4423'
 const BARK_DARK = '#2e1a0c'
@@ -44,9 +48,10 @@ const unit = (a) => {
   return [a[0] / l, a[1] / l]
 }
 
-// A leaf pointing up from the bottom centre of its image.
+// A seedling leaf pointing up from the bottom centre of its image: broad and
+// rounded, coming to a soft point, with a midrib.
 function leafSprite(height) {
-  const width = height * 0.5
+  const width = height * 0.62
   const canvas = document.createElement('canvas')
   canvas.width = Math.ceil(width + 4)
   canvas.height = Math.ceil(height + 4)
@@ -54,29 +59,22 @@ function leafSprite(height) {
   ctx.translate(canvas.width / 2, canvas.height - 2)
   const shape = new Path2D()
   shape.moveTo(0, 0)
-  shape.bezierCurveTo(width * 0.55, -height * 0.2, width * 0.5, -height * 0.7, 0, -height)
-  shape.bezierCurveTo(-width * 0.5, -height * 0.7, -width * 0.55, -height * 0.2, 0, 0)
+  shape.bezierCurveTo(width * 0.62, -height * 0.18, width * 0.55, -height * 0.78, 0, -height)
+  shape.bezierCurveTo(-width * 0.55, -height * 0.78, -width * 0.62, -height * 0.18, 0, 0)
   const fill = ctx.createLinearGradient(-width / 2, 0, width / 2, -height)
   fill.addColorStop(0, '#2f8f3a')
-  fill.addColorStop(0.6, '#5cc85a')
+  fill.addColorStop(0.55, '#5cc85a')
   fill.addColorStop(1, '#a6ef7c')
   ctx.fillStyle = fill
   ctx.fill(shape)
   ctx.strokeStyle = '#1d5a24'
-  ctx.lineWidth = Math.max(1, height * 0.02)
+  ctx.lineWidth = Math.max(1, height * 0.03)
   ctx.stroke(shape)
-  // Midrib and veins.
-  ctx.strokeStyle = 'rgba(220, 255, 200, 0.6)'
-  ctx.lineWidth = Math.max(1, height * 0.018)
+  ctx.strokeStyle = 'rgba(220, 255, 200, 0.55)'
+  ctx.lineWidth = Math.max(1, height * 0.025)
   ctx.beginPath()
-  ctx.moveTo(0, -height * 0.05)
-  ctx.lineTo(0, -height * 0.9)
-  for (const k of [0.3, 0.5, 0.7]) {
-    ctx.moveTo(0, -height * k)
-    ctx.lineTo(width * 0.28, -height * (k + 0.12))
-    ctx.moveTo(0, -height * k)
-    ctx.lineTo(-width * 0.28, -height * (k + 0.12))
-  }
+  ctx.moveTo(0, -height * 0.06)
+  ctx.quadraticCurveTo(width * 0.05, -height * 0.5, 0, -height * 0.88)
   ctx.stroke()
   return canvas
 }
@@ -87,19 +85,18 @@ function wobble(x) {
   return (Math.sin(x) + 0.6 * Math.sin(2.13 * x + 1.7) + 0.3 * Math.sin(4.37 * x + 0.3)) / 1.9
 }
 
-// Knots: where along the wood (in finger lengths from the knuckle) and how
+// Knots: where along the wood (in finger lengths from where it starts) and how
 // far across (-0.5 one edge, 0.5 the other).
 const KNOTS = [
-  [0.33, 0.18],
-  [0.66, -0.22],
-  [1.18, 0.12],
+  [0.11, 0.16],
+  [0.21, -0.18],
 ]
 // Grain streaks running along the wood: how far across, and light or dark.
 const GRAIN = [-0.4, -0.31, -0.22, -0.12, -0.03, 0.06, 0.16, 0.25, 0.34, 0.42].map((across, j) => ({ across, dark: j % 3 !== 1, seed: j * 7.3 }))
 // Deeper cracks in the bark.
 const FURROWS = [-0.27, 0.02, 0.29]
 
-// Bark with wood grain along a path of points (knuckle first) with a width
+// Bark with wood grain along a path of points (base first) with a width
 // at each. Everything is measured in finger lengths along the wood, so the
 // pattern doesn't slide as the branch grows or the finger moves.
 function drawBark(ctx, shown, widths, fingerLength, alpha) {
@@ -255,13 +252,13 @@ export function createSprout(x, y, size) {
   let leafFor = 0
   const motes = Array.from({ length: 10 }, () => ({
     angle: Math.random() * Math.PI * 2,
-    speed: 0.25 + Math.random() * 0.5,
+    speed: 0.2 + Math.random() * 0.4,
     life: 0.8 + Math.random() * 0.9,
     phase: Math.random() * Math.PI * 2,
   }))
 
   return {
-    // Follow the finger, easing so tracker jitter doesn't shake the branch.
+    // Follow the finger, easing so tracker jitter doesn't shake the sprout.
     setFinger(points, immediately = false) {
       finger = finger.map((old, i) => (immediately ? [...points[i]] : add(old, scale(sub(points[i], old), 0.5))))
     },
@@ -279,102 +276,95 @@ export function createSprout(x, y, size) {
       if (alpha <= 0) return
       const fingerLength = length(sub(finger[1], finger[0])) + length(sub(finger[2], finger[1])) + length(sub(finger[3], finger[2]))
       if (fingerLength < 2) return
-      const tip = finger[3]
       const dir = unit(add(sub(finger[3], finger[2]), sub(finger[3], finger[1])))
       const side = [-dir[1], dir[0]]
-      // The branch past the fingertip: a gentle curve.
-      const extend = fingerLength * EXTEND
-      const sway = Math.sin(t * 1.8) * 0.04
-      const branch = [0.25, 0.5, 0.75, 1].map((k) => add(tip, add(scale(dir, extend * k), scale(side, extend * (0.12 * k * k + sway * k)))))
-      const path = [...finger, ...branch]
-      const widthAt = (i) => fingerLength * [0.27, 0.25, 0.23, 0.2, 0.16, 0.13, 0.1, 0.08][i]
+      const sway = Math.sin(t * 1.8) * 0.05
 
-      // How much of the path has grown, in pixels from the knuckle.
-      const segment = path.slice(1).map((p, i) => length(sub(p, path[i])))
-      const fingerPart = segment.slice(0, 3).reduce((a, b) => a + b, 0)
-      const branchPart = segment.slice(3).reduce((a, b) => a + b, 0)
-      const grown = fingerPart * ease(t / FINGER_UNTIL) + branchPart * ease((t - FINGER_UNTIL) / (BRANCH_UNTIL - FINGER_UNTIL))
-
-      // The grown part of the path, cut off at `grown`.
-      const shown = [path[0]]
+      // The wood: from just inside the fingertip, so it comes out of it,
+      // curving a little.
+      const base = add(finger[3], scale(dir, -fingerLength * 0.04))
+      const woodLength = fingerLength * WOOD
+      const wood = [0, 0.34, 0.67, 1].map((k) => add(base, add(scale(dir, woodLength * k), scale(side, woodLength * (0.1 * k * k + sway * k * 0.5)))))
+      const widthAt = (i) => fingerLength * [0.19, 0.17, 0.15, 0.13][i]
+      const segment = wood.slice(1).map((q, i) => length(sub(q, wood[i])))
+      const grown = segment.reduce((a, b) => a + b, 0) * ease(t / WOOD_UNTIL)
+      const shown = [wood[0]]
       const widths = [widthAt(0)]
       let left = grown
       for (let i = 0; i < segment.length && left > 0; i++) {
         const k = Math.min(1, left / (segment[i] || 1))
-        shown.push(add(path[i], scale(sub(path[i + 1], path[i]), k)))
+        shown.push(add(wood[i], scale(sub(wood[i + 1], wood[i]), k)))
         widths.push(widthAt(i) + (widthAt(i + 1) - widthAt(i)) * k)
         left -= segment[i]
       }
-
-      ctx.save()
-      ctx.globalAlpha = alpha
       if (shown.length > 1) drawBark(ctx, shown, widths, fingerLength, alpha)
 
-      // The shoot, leaves and bud at the branch's end.
-      if (t > BRANCH_UNTIL) {
-        const base = branch[branch.length - 1]
-        const branchDir = unit(sub(branch[3], branch[2]))
-        const shootLength = fingerLength * 0.14 * ease((t - BRANCH_UNTIL) / (SHOOT_UNTIL - BRANCH_UNTIL))
-        const shootTip = add(base, scale(branchDir, shootLength))
-        ctx.strokeStyle = '#4aa64a'
-        ctx.lineCap = 'round'
-        ctx.lineWidth = Math.max(1, fingerLength * 0.045)
-        ctx.beginPath()
-        ctx.moveTo(...base)
-        ctx.lineTo(...shootTip)
-        ctx.stroke()
+      if (t <= WOOD_UNTIL) return
+      ctx.save()
+      ctx.globalAlpha = alpha
 
-        const leafHeight = fingerLength * 0.42
-        if (!leaf || Math.abs(leafFor - leafHeight) > leafHeight * 0.25) {
-          leaf = leafSprite(leafHeight)
-          leafFor = leafHeight
-        }
-        const pointing = Math.atan2(branchDir[0], -branchDir[1])
-        const open = (delay) => clamp01((t - SHOOT_UNTIL + 0.1 - delay) / (LEAVES_UNTIL - SHOOT_UNTIL - 0.2))
-        for (const [turn, delay] of [
-          [-1, 0],
-          [1, 0.25],
-        ]) {
-          const k = open(delay)
-          if (k <= 0) continue
-          const grow = 0.15 + 0.85 * easeBack(k)
-          const angle = pointing + turn * (0.12 + 0.85 * ease(k) + 0.04 * Math.sin(t * 2.2 + turn))
-          ctx.save()
-          ctx.translate(...shootTip)
-          ctx.rotate(angle)
-          ctx.scale(grow * (leafHeight / leafFor), grow * (leafHeight / leafFor))
-          ctx.drawImage(leaf, -leaf.width / 2, -leaf.height + 2)
-          ctx.restore()
-        }
-        // The bud between the leaves.
-        const bud = ease((t - SHOOT_UNTIL) / 1.2)
-        if (bud > 0) {
-          ctx.save()
-          ctx.translate(...shootTip)
-          ctx.rotate(pointing)
-          ctx.fillStyle = '#b8f28c'
-          ctx.strokeStyle = '#2f7a35'
-          ctx.lineWidth = Math.max(1, fingerLength * 0.01)
+      // The green stem out of the top of the wood, bending slightly.
+      const top = wood[3]
+      const woodDir = unit(sub(wood[3], wood[2]))
+      const stemSide = [-woodDir[1], woodDir[0]]
+      const stemGrow = ease((t - WOOD_UNTIL) / (STEM_UNTIL - WOOD_UNTIL))
+      const stemLength = fingerLength * STEM * stemGrow
+      const stemTip = add(top, add(scale(woodDir, stemLength), scale(stemSide, stemLength * (-0.15 + sway))))
+      const bend = add(top, add(scale(woodDir, stemLength * 0.55), scale(stemSide, stemLength * 0.12)))
+      ctx.lineCap = 'round'
+      ctx.strokeStyle = '#2f7a35'
+      ctx.lineWidth = Math.max(1.5, fingerLength * 0.055)
+      ctx.beginPath()
+      ctx.moveTo(...add(top, scale(woodDir, -fingerLength * 0.02)))
+      ctx.quadraticCurveTo(...bend, ...stemTip)
+      ctx.stroke()
+      ctx.strokeStyle = '#5cc85a'
+      ctx.lineWidth = Math.max(1, fingerLength * 0.028)
+      ctx.beginPath()
+      ctx.moveTo(...add(top, scale(woodDir, -fingerLength * 0.02)))
+      ctx.quadraticCurveTo(...bend, ...stemTip)
+      ctx.stroke()
+
+      // Two leaves from the top of the stem, one to each side. Each starts
+      // small, folded upright and narrow, and opens sideways as it grows.
+      const leafHeight = fingerLength * LEAF
+      if (!leaf || Math.abs(leafFor - leafHeight) > leafHeight * 0.25) {
+        leaf = leafSprite(leafHeight)
+        leafFor = leafHeight
+      }
+      const pointing = Math.atan2(woodDir[0], -woodDir[1])
+      const leaves = [
+        // turn (−1 left, 1 right), delay, size, how far it opens (radians)
+        [-1, 0, 1, 1.05],
+        [1, 0.2, 0.9, 1.15],
+      ]
+      for (const [turn, delay, size, spread] of leaves) {
+        const k = clamp01((t - STEM_UNTIL - delay) / (LEAVES_UNTIL - STEM_UNTIL - 0.2))
+        if (k <= 0) continue
+        const grow = (0.2 + 0.8 * easeBack(k)) * size * (leafHeight / leafFor)
+        const unfurl = 0.25 + 0.75 * ease(k * 1.2) // narrow while folded, full width once open
+        const angle = pointing + turn * (0.1 + spread * ease(k) + 0.05 * Math.sin(t * 2.2 + turn))
+        ctx.save()
+        ctx.translate(...stemTip)
+        ctx.rotate(angle)
+        ctx.scale(grow * unfurl, grow)
+        ctx.drawImage(leaf, -leaf.width / 2, -leaf.height + 2)
+        ctx.restore()
+      }
+
+      // Specks of green light drifting up as the leaves open.
+      const since = t - STEM_UNTIL
+      if (since > 0) {
+        ctx.globalCompositeOperation = 'lighter'
+        for (const m of motes) {
+          if (since > m.life + 0.6) continue
+          const d = fingerLength * m.speed * since
+          const q = add(stemTip, [Math.cos(m.angle) * d * 0.6, Math.sin(m.angle) * d * 0.4 - d * 0.5])
+          const fade = clamp01(1 - since / (m.life + 0.6)) * (0.6 + 0.4 * Math.sin(t * 9 + m.phase))
+          ctx.fillStyle = `rgba(170, 255, 140, ${0.7 * fade})`
           ctx.beginPath()
-          ctx.ellipse(0, -fingerLength * 0.06 * bud, fingerLength * 0.035 * bud, fingerLength * 0.07 * bud, 0, 0, Math.PI * 2)
+          ctx.arc(q[0], q[1], Math.max(1, fingerLength * 0.015), 0, Math.PI * 2)
           ctx.fill()
-          ctx.stroke()
-          ctx.restore()
-        }
-        // Specks of green light drifting up from the sprout as it opens.
-        const since = t - SHOOT_UNTIL
-        if (since > 0) {
-          ctx.globalCompositeOperation = 'lighter'
-          for (const m of motes) {
-            if (since > m.life + 0.6) continue
-            const d = fingerLength * m.speed * since
-            const p = add(shootTip, [Math.cos(m.angle) * d * 0.6, Math.sin(m.angle) * d * 0.4 - d * 0.5])
-            const fade = clamp01(1 - since / (m.life + 0.6)) * (0.6 + 0.4 * Math.sin(t * 9 + m.phase))
-            ctx.fillStyle = `rgba(170, 255, 140, ${0.8 * fade})`
-            ctx.beginPath()
-            ctx.arc(p[0], p[1], Math.max(1, fingerLength * 0.018), 0, Math.PI * 2)
-            ctx.fill()
-          }
         }
       }
       ctx.restore()

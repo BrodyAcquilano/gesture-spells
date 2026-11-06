@@ -417,7 +417,7 @@ const spells = [
     spell: {
       id: 'builtin:index-sprout',
       name: 'Index-Sprout',
-      description: `Raise your index finger from a fist, thumb tucked in: your finger turns into a branch that grows past your fingertip and opens into a sprout with two leaves, creaking as it grows. ${GENERATED_NOTE}`,
+      description: `Raise your index finger from a fist, thumb tucked in: a short wooden branch grows out of your fingertip, creaking, then a green stem with two leaves unfurling, like a seedling. ${GENERATED_NOTE}`,
       animationId: 'builtin:sprout',
       audioId: 'builtin:growth',
       sensitivity: 1,

@@ -27,6 +27,6 @@
     "id": "builtin:sprout",
     "name": "Sprout",
     "procedural": "sprout",
-    "description": "The index finger turns into a wooden branch, with grain running along it, deep cracks, knots and a rough edge: the bark creeps up from the knuckle to the fingertip, the branch grows on past the tip, then a green shoot opens two leaves with a bud between them and specks of green light (about 5 s). Drawn along the finger, so it moves and bends with it. Drawn by code (src/effects/sprout.js)."
+    "description": "A short wooden branch, with grain, knots and a rough edge, grows out of the index fingertip; a green stem grows out of its top and two seedling leaves unfurl from it, one to each side, with specks of green light (about 5 s). It points the way the finger points and follows it. Drawn by code (src/effects/sprout.js)."
   }
 ]
