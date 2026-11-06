@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { drawHand } from '../tracking/drawHand.js'
 import { arrivalTime } from '../gestures/features.js'
-import { createEffectPlayer } from '../effects/effectPlayer.js'
+import { createEffectPlayer, preloadAnimation } from '../effects/effectPlayer.js'
 import { preloadSound } from '../effects/audioEngine.js'
 
 const LEAD_IN = 0.15 // seconds showing the first pose before the hand moves
@@ -25,7 +25,8 @@ export default function SpellPlayback({ gesture, animation, audio }) {
 
   useEffect(() => {
     preloadSound(audio?.url)
-  }, [audio])
+    preloadAnimation(animation)
+  }, [audio, animation])
 
   useEffect(() => {
     const canvas = canvasRef.current

@@ -194,12 +194,16 @@ function runWith(rec, frames, aspect) {
 }
 let examplesTried = 0
 let examplesCast = 0
+// Spells that share a gesture (Index-Bubble is a copy of Index-Sprout's) are
+// never ticked together on the Record tab, so each is tested without its twin.
+const sameGesture = (a, b) => JSON.stringify(a.gesture.examples) === JSON.stringify(b.gesture.examples)
 for (const spellUnderTest of builtIns) {
   const missed = []
   const otherStart = []
+  const pool = builtIns.filter((other) => other === spellUnderTest || !sameGesture(other, spellUnderTest))
   spellUnderTest.gesture.examples.forEach((example, k) => {
     const rec = buildRecognizer(
-      builtIns.map((other) =>
+      pool.map((other) =>
         other === spellUnderTest ? { ...other, gesture: { examples: other.gesture.examples.filter((_, j) => j !== k) } } : other,
       ),
     )
@@ -232,7 +236,7 @@ for (const spellUnderTest of builtIns) {
       check(`${label} as ${name} casts its spell`, result.casts.includes(spellUnderTest.id) && result.casts.every((id) => id === spellUnderTest.id), result.casts.join(', ') || 'no cast')
     }
   })
-  const own = buildRecognizer(builtIns).entries.find((entry) => entry.spell.id === spellUnderTest.id)
+  const own = buildRecognizer(pool).entries.find((entry) => entry.spell.id === spellUnderTest.id)
   console.log(
     `info  ${spellUnderTest.name}: limit ${own.threshold.toFixed(2)}; missed ${missed.length ? missed.join(', ') : 'none'}; from another start cast ${otherStart.length}/${spellUnderTest.gesture.examples.length}`,
   )

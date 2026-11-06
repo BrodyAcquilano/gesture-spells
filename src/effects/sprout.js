@@ -248,6 +248,7 @@ export function createSprout(x, y, size) {
   let t = 0
   const defaultLength = size * 0.16
   let finger = [0.95, 0.62, 0.3, 0].map((k) => [x, y + defaultLength * k])
+  let onFinger = false // given a finger's joints (setFinger), or growing straight up from a point
   let leaf = null
   let leafFor = 0
   const motes = Array.from({ length: 10 }, () => ({
@@ -261,9 +262,14 @@ export function createSprout(x, y, size) {
     // Follow the finger, easing so tracker jitter doesn't shake the sprout.
     setFinger(points, immediately = false) {
       finger = finger.map((old, i) => (immediately ? [...points[i]] : add(old, scale(sub(points[i], old), 0.5))))
+      onFinger = true
     },
-    setPosition() {
-      // The finger's joints (setFinger) say where everything goes.
+    // Placed between fingers or on the palm there is no finger to grow out
+    // of: it grows straight up from the point, and follows that point.
+    setPosition(nx, ny) {
+      if (onFinger) return // the finger's joints say where everything goes
+      const move = scale(sub([nx, ny], finger[3]), 0.5)
+      finger = finger.map((joint) => add(joint, move))
     },
     get done() {
       return t > END

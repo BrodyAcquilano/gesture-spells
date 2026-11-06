@@ -3,7 +3,7 @@ import { useData } from '../library/DataContext.js'
 import { useHandCamera } from '../tracking/useHandCamera.js'
 import { drawHand, mirroredMapper } from '../tracking/drawHand.js'
 import { buildRecognizer, createLiveMatcher } from '../gestures/recognizer.js'
-import { createEffectPlayer } from '../effects/effectPlayer.js'
+import { createEffectPlayer, preloadAnimation } from '../effects/effectPlayer.js'
 import { preloadSound } from '../effects/audioEngine.js'
 import { startRecording, timestampId } from '../record/videoRecorder.js'
 
@@ -37,7 +37,10 @@ export default function LiveCaster({ recognize = true, spellIds = null, details,
   const recognizer = useMemo(() => buildRecognizer(active), [active])
   // Decode every spell's sound now, so casting plays it without delay.
   useEffect(() => {
-    for (const spell of active) preloadSound(findFile('audio', spell.audioId)?.url)
+    for (const spell of active) {
+      preloadSound(findFile('audio', spell.audioId)?.url)
+      preloadAnimation(findFile('animations', spell.animationId))
+    }
   }, [active, findFile])
   const latest = useRef({ details, onPhase, onSaved, spellIds })
   useEffect(() => {

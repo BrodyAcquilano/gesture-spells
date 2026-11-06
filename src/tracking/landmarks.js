@@ -38,16 +38,24 @@ export function handPoint(points) {
   return [(thumb[0] + index[0]) / 2, (thumb[1] + index[1]) / 2]
 }
 
-// Where an animation appears on the hand:
-//   'pinch'     between thumb tip and index fingertip (coins)
-//   'indexTip'  the index fingertip (illumination)
-//   'palm'      the centre of the palm (fireball)
-//   'middleTip' the middle fingertip (clock)
+// Where an animation appears on the hand (the names are listed, with labels,
+// in src/library/placement.js):
+//   '<finger>Tip'  the top of a finger (thumb, index, middle, ring, pinky)
+//   '<finger>Low'  slightly lower: the finger's last joint
+//   'pinch', 'indexMiddle', 'middleRing', 'ringPinky'  between two fingertips
+//   'palm'         the centre of the palm
+// Coins use the pinch, Brightness the index tip, Fireball the palm, Clock the
+// middle tip.
 export const PALM = [0, 5, 9, 13, 17]
+const ONE_POINT = { thumbTip: 4, indexTip: 8, middleTip: 12, ringTip: 16, pinkyTip: 20, thumbLow: 3, indexLow: 7, middleLow: 11, ringLow: 15, pinkyLow: 19 }
+const BETWEEN = { pinch: [4, 8], indexMiddle: [8, 12], middleRing: [12, 16], ringPinky: [16, 20] }
 
 export function anchorPoint(points, anchor = 'pinch') {
-  if (anchor === 'indexTip') return [points[INDEX_TIP][0], points[INDEX_TIP][1]]
-  if (anchor === 'middleTip') return [points[12][0], points[12][1]]
+  if (ONE_POINT[anchor] != null) return [points[ONE_POINT[anchor]][0], points[ONE_POINT[anchor]][1]]
+  if (BETWEEN[anchor]) {
+    const [a, b] = BETWEEN[anchor]
+    return [(points[a][0] + points[b][0]) / 2, (points[a][1] + points[b][1]) / 2]
+  }
   if (anchor === 'palm') {
     const x = PALM.reduce((sum, i) => sum + points[i][0], 0) / PALM.length
     const y = PALM.reduce((sum, i) => sum + points[i][1], 0) / PALM.length

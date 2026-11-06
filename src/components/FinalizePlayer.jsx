@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { createEffectPlayer } from '../effects/effectPlayer.js'
+import { createEffectPlayer, preloadAnimation } from '../effects/effectPlayer.js'
 import { audioContext, preloadSound, setExtraOutput } from '../effects/audioEngine.js'
 import { mirroredMapper } from '../tracking/drawHand.js'
 import { recordingVideoUrl, saveExportFile } from '../storage/projectApi.js'
@@ -38,7 +38,10 @@ export default function FinalizePlayer({ recording, track, casts, resolveCast, o
   const duration = recording.duration
 
   useEffect(() => {
-    for (const cast of casts) preloadSound(resolveCast(cast).audio?.url)
+    for (const cast of casts) {
+      preloadSound(resolveCast(cast).audio?.url)
+      preloadAnimation(resolveCast(cast).animation)
+    }
   }, [casts, resolveCast])
 
   useEffect(() => {

@@ -33,12 +33,14 @@
 // All of it is part of the repository, so spells that use them work wherever
 // the project is cloned. (<kind> is animations or audio.)
 //   POST   /api/library/<kind>?name=&id=    save an uploaded file (raw bytes) → its index entry
-//   PUT    /api/library/<kind>/<id>         change an entry (name, description)
+//   PUT    /api/library/<kind>/<id>         change an entry (name, description, and for an
+//                                            animation file its placement on the hand)
 //   DELETE /api/library/<kind>/<id>         delete an entry (and its file, if it has one)
 import { createReadStream, createWriteStream } from 'node:fs'
 import { mkdir, readFile, readdir, rm, stat, unlink, writeFile } from 'node:fs/promises'
 import { pipeline } from 'node:stream/promises'
 import { fileURLToPath } from 'node:url'
+import { cleanPlacement } from '../src/library/placement.js'
 
 const root = new URL('../', import.meta.url)
 const SPELLS = new URL('public/library/spells/', root)
@@ -59,6 +61,11 @@ const LIBRARY_EXTENSIONS = {
   audio: ['mp3', 'wav', 'ogg', 'oga', 'opus', 'm4a', 'aac', 'flac', 'webm'],
 }
 const LIBRARY_FILE = /^[a-z0-9][a-z0-9._-]*$/
+// Content types for serving library files (see serveLibraryFile).
+const LIBRARY_TYPES = {
+  webm: 'video/webm', mp4: 'video/mp4', gif: 'image/gif', webp: 'image/webp', png: 'image/png', apng: 'image/apng', json: 'application/json',
+  mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', oga: 'audio/ogg', opus: 'audio/ogg', m4a: 'audio/mp4', aac: 'audio/aac', flac: 'audio/flac',
+}
 const LIBRARY_ID = /^[A-Za-z0-9:._-]{1,100}$/
 
 // A recording's video file, whichever format it was saved in.
@@ -240,6 +247,7 @@ async function updateLibraryEntry(kind, id, changes) {
   const allowed = {}
   if (typeof changes.name === 'string') allowed.name = changes.name
   if (typeof changes.description === 'string') allowed.description = changes.description
+  if (kind === 'animations' && changes.placement) allowed.placement = cleanPlacement(changes.placement)
   entries[at] = { ...entries[at], ...allowed }
   await writeLibraryIndex(kind, entries)
 }
@@ -322,11 +330,32 @@ async function handle(request, response) {
   }
 }
 
+// Serves an imported animation or sound straight from public/library/<kind>/.
+// Vite serves public/ itself, but only files it knew of at start-up or saw
+// through its file watcher, and the watcher ignores public/library (so saving
+// there doesn't reload the page). Without this, a file imported after the dev
+// server started isn't served until it restarts.
+async function serveLibraryFile(request, response, next) {
+  if (request.method !== 'GET' && request.method !== 'HEAD') return next()
+  const [kind, name, extra] = decodeURIComponent((request.url ?? '').split('?')[0]).split('/').filter(Boolean)
+  const extension = name?.split('.').pop().toLowerCase()
+  if (extra || !LIBRARY_EXTENSIONS[kind] || !name || !LIBRARY_FILE.test(name) || !LIBRARY_EXTENSIONS[kind].includes(extension)) return next()
+  const url = new URL(name, libraryFolder(kind))
+  if (!(await stat(url).then(() => true, () => false))) return next()
+  response.setHeader('Cache-Control', 'no-cache')
+  try {
+    await sendFile(request, response, url, LIBRARY_TYPES[extension] ?? 'application/octet-stream')
+  } catch (error) {
+    if (!response.headersSent) send(response, 500, { error: error.message })
+  }
+}
+
 export function projectStorage() {
   return {
     name: 'project-storage',
     configureServer(server) {
       server.middlewares.use('/api', handle)
+      server.middlewares.use('/library', serveLibraryFile)
     },
     configurePreviewServer(server) {
       server.middlewares.use('/api', handle)

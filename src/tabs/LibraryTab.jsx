@@ -5,11 +5,15 @@ import { useConfirm, useToast } from '../components/toast.js'
 import Workspace from '../components/Workspace.jsx'
 import ListPanel from '../components/ListPanel.jsx'
 import MediaPreview from '../components/MediaPreview.jsx'
+import { ANCHOR_GROUPS, pivotFor } from '../library/placement.js'
+import { PROCEDURAL_ANIMATIONS, placementOf } from '../effects/animations.js'
 
 // The Animations tab and the Audio tab (kind = 'animations' | 'audio').
 // Every item, whether uploaded or made by code, can be renamed, described and
 // deleted; the changes are saved into public/library/<kind>/index.json (part
-// of the repository). An item a spell uses can't be deleted: a message says
+// of the repository). Every animation also has its placement on the hand
+// (src/library/placement.js): where it attaches, its size and whether it
+// follows the hand. Ones drawn by code start from their own defaults. An item a spell uses can't be deleted: a message says
 // which spells use it. Both modes show the same library.
 export default function LibraryTab({ kind }) {
   const { library, spells, addFiles, updateFile, removeFile, loadError, spellsReadOnly } = useData()
@@ -58,6 +62,12 @@ export default function LibraryTab({ kind }) {
 
   const upload = () => inputRef.current.click()
 
+  const placement = placementOf(selected)
+  const setPlacement = (changes) => updateFile(kind, selected, { placement: { ...placement, ...changes } })
+  const placed = kind === 'animations' && selected && (selected.file || PROCEDURAL_ANIMATIONS[selected.procedural])
+  const drawnByCode = Boolean(PROCEDURAL_ANIMATIONS[selected?.procedural])
+  const canFollow = !drawnByCode || Boolean(PROCEDURAL_ANIMATIONS[selected.procedural].canFollow)
+
   let format = '—'
   if (selected?.procedural) format = kind === 'audio' ? 'WAV, made by code' : 'Drawn by code'
   else if (selected?.file) format = extensionOf(selected.file).toUpperCase()
@@ -100,6 +110,34 @@ export default function LibraryTab({ kind }) {
                   <h2>{selected.name}</h2>
                 )}
               </div>
+              {placed && (
+                <label className="field">
+                  <span>Position on the hand</span>
+                  <select
+                    className="select"
+                    value={placement.anchor}
+                    disabled={!editable}
+                    onChange={(event) => setPlacement({ anchor: event.target.value })}
+                  >
+                    {ANCHOR_GROUPS.map((group) => (
+                      <optgroup key={group.label} label={group.label}>
+                        {Object.entries(group.anchors).map(([value, label]) => (
+                          <option key={value} value={value}>
+                            {label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                  <span className="muted small">
+                    {drawnByCode
+                      ? 'Drawn by code: it appears at this point the way it was designed to.'
+                      : pivotFor(placement.anchor) === 'bottom'
+                        ? "The middle of the animation's bottom edge goes on this point, so it comes out of the finger."
+                        : 'The centre of the animation goes on this point.'}
+                  </span>
+                </label>
+              )}
               <dl className="facts">
                 <dt>Source</dt>
                 <dd>{selected.procedural ? 'Made by code (src/effects/)' : `File: public/library/${kind}/${selected.file}`}</dd>
@@ -109,6 +147,60 @@ export default function LibraryTab({ kind }) {
                 <dd>{formatBytes(selected.size)}</dd>
                 <dt>Added</dt>
                 <dd>{formatDate(selected.addedAt)}</dd>
+                {placed && (
+                  <>
+                    {drawnByCode ? (
+                      <>
+                        <dt>Size</dt>
+                        <dd>
+                          ×{' '}
+                          <input
+                            type="number"
+                            min="0.25"
+                            max="4"
+                            step="0.25"
+                            value={placement.scale}
+                            disabled={!editable}
+                            onChange={(event) => setPlacement({ scale: Number(event.target.value) })}
+                            aria-label="Size, times its designed size"
+                          />{' '}
+                          <span className="muted small">its designed size × this (1: as designed)</span>
+                        </dd>
+                      </>
+                    ) : (
+                      <>
+                        <dt>Height</dt>
+                        <dd>
+                          <input
+                            type="number"
+                            min="0.5"
+                            max="20"
+                            step="0.5"
+                            value={placement.size}
+                            disabled={!editable}
+                            onChange={(event) => setPlacement({ size: Number(event.target.value) })}
+                            aria-label="Height in palm lengths"
+                          />{' '}
+                          <span className="muted small">palm lengths (scales with the hand)</span>
+                        </dd>
+                      </>
+                    )}
+                    <dt>Follows the hand</dt>
+                    <dd>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={placement.follow}
+                          disabled={!editable || !canFollow}
+                          onChange={(event) => setPlacement({ follow: event.target.checked })}
+                        />{' '}
+                        <span className="muted small">
+                          {canFollow ? 'moves with the hand while it plays' : 'stays where it was cast (it bursts out from there)'}
+                        </span>
+                      </label>
+                    </dd>
+                  </>
+                )}
               </dl>
               <label className="field">
                 <span>Description</span>

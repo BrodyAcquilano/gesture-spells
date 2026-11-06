@@ -67,8 +67,10 @@ export function evaluate(settings, { verbose = false } = {}) {
     const tally = (perSpell[spell.name] = { correct: 0, late: 0, wrong: 0, missed: 0, falseAlarm: 0 })
     spell.gesture.examples.forEach((example, k) => {
       if (onlyReal && example.frames.length < 2) return
+      // A spell sharing this one's gesture (a copy) is never ticked with it.
+      const pool = spells.filter((s) => s === spell || JSON.stringify(s.gesture.examples) !== JSON.stringify(spell.gesture.examples))
       const recognizer = buildRecognizer(
-        spells.map((s) => (s === spell ? { ...s, gesture: { examples: s.gesture.examples.filter((_, j) => j !== k) } } : s)),
+        pool.map((s) => (s === spell ? { ...s, gesture: { examples: s.gesture.examples.filter((_, j) => j !== k) } } : s)),
         settings,
       )
       const forward = streamOf(example)

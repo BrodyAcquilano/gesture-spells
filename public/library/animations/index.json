@@ -25,8 +25,21 @@
   },
   {
     "id": "builtin:sprout",
-    "name": "Sprout",
+    "name": "Index-Sprout",
     "procedural": "sprout",
     "description": "A short wooden branch, with grain, knots and a rough edge, grows out of the index fingertip; a green stem grows out of its top and two seedling leaves unfurl from it, one to each side, with specks of green light (about 5 s). It points the way the finger points and follows it. Drawn by code (src/effects/sprout.js)."
+  },
+  {
+    "id": "file:animations:index-bubble.png",
+    "name": "Index-Bubble",
+    "file": "index-bubble.png",
+    "description": "",
+    "size": 1516733,
+    "addedAt": 1793932895522,
+    "placement": {
+      "anchor": "indexTip",
+      "size": 4,
+      "follow": true
+    }
   }
 ]
